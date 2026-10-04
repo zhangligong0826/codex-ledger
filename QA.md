@@ -127,3 +127,9 @@ Windows validation remains hosted x64 CI, including UI rendering, installer/upgr
 ### Published Beta.3 binary verification
 
 The tagged [release workflow 37222701249](https://github.com/zhangligong0826/codex-ledger/actions/runs/37222701249) passed all jobs, including the repeated three-Mac matrix, Windows hosted execution/upgrade and universal Mac packaging. Beta.3 was published as a separate prerelease after all six downloaded draft binaries matched their SHA-256 values. A pristine Mac extraction passed strict ad-hoc signature, universal architecture, version/build 12 and native asset checks; the DMG verified. Both Windows portable archives passed integrity and bundled runtime/license checks, and their executable/runtime PE architectures matched x64/ARM64. Prepared winget manifests have the actual verified installer hashes; community submission/acceptance remains pending. Old Beta.1/Beta.2 assets remain unchanged.
+
+
+### Beta.3 download page and Homebrew acceptance
+
+- [Pages run 37223493921](https://github.com/zhangligong0826/codex-ledger/actions/runs/37223493921) deployed Beta.3. All six public asset links and CHECKSUMS.txt returned HTTP 200. Real Mac/Windows/iPhone user-agent checks passed platform recommendation, phone installation instructions, EN/CN toggle, light/dark layout and no horizontal overflow.
+- Tap commit `3798e21` uses the verified universal ZIP checksum. Cask syntax, style and online audit passed (only the custom tap prerelease-policy rule excluded; signing/quarantine/checksum checks retained). Temporary-directory installation, strict signature verification and uninstall passed. Beta.3 build 12 was then installed into the user's Applications directory. The pre-install preferences SHA-256 remained identical and quarantine was retained. No installed app was launched, and system first-launch confirmation/share-dialog interactions are not claimed as verified.
