@@ -3,6 +3,24 @@ set -euo pipefail
 PROJECT_DIR="${0:A:h}"
 OUTPUT_DIR="${CODEX_LEDGER_OUTPUT_DIR:-$PROJECT_DIR/dist}"
 BUILD_ARCH="${CODEX_LEDGER_ARCH:-universal}"
+NATIVE_ICON="${CODEX_LEDGER_NATIVE_ICON:-auto}"
+case "$NATIVE_ICON" in
+  auto|required|off) ;;
+  *) print -u2 'CODEX_LEDGER_NATIVE_ICON must be auto, required, or off'; exit 1 ;;
+esac
+COMPILE_NATIVE_ICON=0
+if [[ "$NATIVE_ICON" != off ]]; then
+  # Use the selected toolchain. Never change the user's global xcode-select.
+  XCODE_VERSION="$(xcrun xcodebuild -version 2>/dev/null || true)"
+  if [[ "$XCODE_VERSION" =~ 'Xcode ([0-9]+)' && "${match[1]}" -ge 26 ]]; then
+    COMPILE_NATIVE_ICON=1
+  elif [[ "$NATIVE_ICON" == required ]]; then
+    print -u2 'Native icons require initialized Xcode 26 or later. Set DEVELOPER_DIR to its Contents/Developer directory.'
+    exit 1
+  else
+    print 'Full Xcode 26+ not selected; using the compatible checked-in ICNS.'
+  fi
+fi
 STAGING_DIR="$(mktemp -d /private/tmp/codex-ledger-build.XXXXXX)"
 STAGED_APP="$STAGING_DIR/Codex Ledger.app"
 trap 'rm -rf "$STAGING_DIR"' EXIT
@@ -23,7 +41,19 @@ else
   cp "$STAGING_DIR/CodexLedger-$BUILD_ARCH" "$STAGED_APP/Contents/MacOS/CodexLedger"
 fi
 cp "$PROJECT_DIR/Info.plist" "$STAGED_APP/Contents/Info.plist"
-cp "$PROJECT_DIR/AppIcon.icns" "$STAGED_APP/Contents/Resources/AppIcon.icns"
+if [[ "$COMPILE_NATIVE_ICON" == 1 ]]; then
+  # A compiler failure is an error, never a silent fallback to a flat icon.
+  xcrun actool "$PROJECT_DIR/Assets/AppIcon.icon" \
+    --compile "$STAGED_APP/Contents/Resources" --platform macosx \
+    --minimum-deployment-target 14.0 --target-device mac --app-icon AppIcon \
+    --output-partial-info-plist "$STAGING_DIR/icon-info.plist" \
+    --warnings --errors --notices --output-format human-readable-text
+  /usr/libexec/PlistBuddy -c 'Delete CFBundleIconFile' "$STAGED_APP/Contents/Info.plist"
+  /usr/libexec/PlistBuddy -c "Merge $STAGING_DIR/icon-info.plist" "$STAGED_APP/Contents/Info.plist"
+  zsh "$PROJECT_DIR/verify-native-icon.sh" "$STAGED_APP"
+else
+  cp "$PROJECT_DIR/AppIcon.icns" "$STAGED_APP/Contents/Resources/AppIcon.icns"
+fi
 xattr -cr "$STAGED_APP"
 codesign --force --sign - "$STAGED_APP"
 codesign --verify --deep --strict "$STAGED_APP"

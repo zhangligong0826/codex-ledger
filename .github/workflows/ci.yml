@@ -21,6 +21,8 @@ jobs:
       - name: Accounting tests
         run: zsh test.sh
       - name: Build native app
+        env:
+          CODEX_LEDGER_NATIVE_ICON: ${{ matrix.runner == 'macos-latest' && 'required' || 'auto' }}
         run: CODEX_LEDGER_ARCH="$(uname -m)" zsh build.sh
       - name: Verify and run diagnostic without personal data
         shell: zsh {0}

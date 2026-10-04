@@ -1,7 +1,7 @@
 # Releasing
 
 1. Update versions in `Info.plist` and notes in `CHANGELOG.md`.
-2. Run tests, build, package and native UI checks in `QA.md`.
+2. Run tests, `CODEX_LEDGER_NATIVE_ICON=required zsh build.sh` with initialized Xcode 26+, `CODEX_LEDGER_NATIVE_ICON=required zsh package.sh`, and native UI checks in `QA.md`. Verify the extracted app with `zsh verify-native-icon.sh`; a release must retain the layered icon catalog.
 3. Commit reviewed source, tag `v<version>`, push main/tag. Dispatch the release workflow **on the tag**. It creates a draft release after checking the version and packages.
 4. Review assets, notes and CI; publish the draft. Never claim notarization for ad-hoc builds.
 5. Update version and universal ZIP SHA-256 in `zhangligong0826/homebrew-tap/Casks/codex-ledger.rb` after assets are public. Run Homebrew style/audit and isolated install/uninstall.

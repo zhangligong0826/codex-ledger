@@ -34,6 +34,7 @@ brew uninstall --cask zhangligong0826/tap/codex-ledger
 - 每轮输入、缓存输入、输出、推理输出，以及对话模型和用途分布。搜索项目名、路径、对话标题、任务和模型。
 - 导出项目／对话汇总 CSV；对话详情另可导出各轮 CSV。任务和模型页支持导出，表头跟随语言。
 - 默认英文，可切换简体中文；支持系统、浅色、深色外观，登录启动、菜单栏数字、手动分类和打开原始聊天。
+- 分层原生 Liquid Glass 应用图标，支持系统明暗及着色外观，旧版 macOS 使用兼容图标。
 
 总览最大 340 × 460 点，标题、日期和底栏固定，内容可滚动。右键可刷新、打开账本、设置或退出；激活时 ⌘L 切换总览，Escape 收起，⌘Q 退出，总览中 ⌘R 刷新。
 
@@ -51,7 +52,7 @@ brew uninstall --cask zhangligong0826/tap/codex-ledger
 
 ## 源码
 
-MIT 开源，无第三方依赖。安装 Apple Command Line Tools 后：
+MIT 开源，无第三方依赖。安装 Apple Command Line Tools 后即可使用兼容图标构建；选择已初始化的 Xcode 26 及以上可编译原生分层图标。下载使用的用户无需安装这些工具。
 
 ```sh
 git clone https://github.com/zhangligong0826/codex-ledger.git
@@ -61,4 +62,4 @@ zsh build.sh
 zsh package.sh
 ```
 
-产物在 `dist/`。构建、诊断和演示模式见 [英文 README](README.md)，验证范围见 [QA.md](QA.md)。独立社区项目，与 OpenAI 和 Apple 无隶属关系。
+产物在 `dist/`。`CODEX_LEDGER_NATIVE_ICON=required zsh build.sh` 要求编译原生图标；`off` 使用兼容 ICNS。图标源文件为 `Assets/AppIcon.icon`，使用 Apple Icon Composer 编辑，`zsh make-native-icon.sh` 重新生成预览及兼容图标，详见 [图标工作流](ICON_DESIGN.md)。构建、诊断和演示模式见 [英文 README](README.md)，验证范围见 [QA.md](QA.md)。独立社区项目，与 OpenAI 和 Apple 无隶属关系。

@@ -17,11 +17,12 @@ jobs:
           version="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' Info.plist)"
           [[ "$GITHUB_REF" == "refs/tags/v$version" ]] || { print -u2 'Select the matching version tag when dispatching.'; exit 1; }
       - run: zsh test.sh
-      - run: zsh build.sh
-      - run: zsh package.sh
+      - run: CODEX_LEDGER_NATIVE_ICON=required zsh build.sh
+      - run: CODEX_LEDGER_NATIVE_ICON=required zsh package.sh
       - name: Verify packages
         shell: zsh {0}
         run: |
+          zsh verify-native-icon.sh "dist/Codex Ledger.app"
           unzip -t dist/*.zip
           cd dist
           shasum -a 256 -c CHECKSUMS.txt

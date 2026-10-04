@@ -38,6 +38,7 @@ Uninstalling does not remove your Codex logs. Keep one installed copy; when movi
 - **Estimated API cost in USD**, including input/cache/output breakdowns, project/conversation/turn/model costs and explicit unpriced coverage.
 - Search project names, paths, conversation titles, requests, and models. Export project/conversation summaries, task turns, or model usage as CSV.
 - English by default, Simplified Chinese, and System/Light/Dark. Optional launch at login and menu bar token count.
+- Native layered Liquid Glass app icon on supported systems, with a compatible icon for older macOS.
 - Local rule-based classification with manual corrections. Open the original Codex chat or linked local files.
 
 The overview is at most **340 × 460 points**, with a fixed header/footer and scrollable body. Right-click the menu bar icon for actions. ⌘L toggles the overview while active; Escape dismisses it; ⌘Q quits. The overview supports ⌘R to refresh.
@@ -58,7 +59,7 @@ The default source is `CODEX_HOME` or `~/.codex`; change it in Settings. Every 3
 
 ## Build and contribute
 
-Needs Apple's Command Line Tools (`xcode-select --install`), no third-party packages.
+Needs Apple's Command Line Tools (`xcode-select --install`), no third-party packages. Full, initialized Xcode 26+ compiles the native layered icon; Command Line Tools-only builds use the checked-in compatible ICNS. End users need neither tool.
 
 ```sh
 git clone https://github.com/zhangligong0826/codex-ledger.git
@@ -77,7 +78,7 @@ The app, universal ZIP, DMG and `CHECKSUMS.txt` are written to `dist/`. Set `COD
 "dist/Codex Ledger.app/Contents/MacOS/CodexLedger" --diagnose --scope=30d
 ```
 
-Diagnostic scopes: `today`, `yesterday`, `7d`, `30d`, `all`; `CODEX_LEDGER_SOURCE` overrides its source directory. Demo states `ready`, `loading`, `empty`, `error` use `CODEX_LEDGER_DEMO_STATE`. Rebuild the original icon with `zsh make-icon.sh`; its editable SVG reference is in `Assets/`.
+Diagnostic scopes: `today`, `yesterday`, `7d`, `30d`, `all`; `CODEX_LEDGER_SOURCE` overrides its source directory. Demo states `ready`, `loading`, `empty`, `error` use `CODEX_LEDGER_DEMO_STATE`. Set `CODEX_LEDGER_NATIVE_ICON=required` to require a native icon build, or `off` for the ICNS fallback. Rebuild icon previews with `zsh make-native-icon.sh` using Apple's Icon Composer. The editable layered document and [icon workflow](ICON_DESIGN.md) are included.
 
 See [contributing](CONTRIBUTING.md), [validation](QA.md), and [releasing](RELEASING.md). CI covers native Apple Silicon and Intel builds and a macOS 14 runner. Visual inspection is separate from headless CI.
 

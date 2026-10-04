@@ -17,6 +17,9 @@ APP_VERSION="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$A
 APP_ARCHS=" $(lipo -archs "$APP/Contents/MacOS/CodexLedger") "
 [[ "$APP_ARCHS" == *' arm64 '* && "$APP_ARCHS" == *' x86_64 '* ]] || { print -u2 'Packaging requires both arm64 and x86_64.'; exit 1; }
 codesign --verify --deep --strict "$APP"
+if [[ -f "$APP/Contents/Resources/Assets.car" || "${CODEX_LEDGER_NATIVE_ICON:-auto}" == required ]]; then
+  zsh "$PROJECT_DIR/verify-native-icon.sh" "$APP"
+fi
 ln -s /Applications "$STAGING_DIR/Applications"
 cp "$PROJECT_DIR/LICENSE" "$STAGING_DIR/LICENSE.txt"
 cp "$PROJECT_DIR/README.zh-CN.md" "$STAGING_DIR/README.zh-CN.md"

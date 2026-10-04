@@ -1,0 +1,96 @@
+{
+  "fill-specializations": [
+    {
+      "value": {
+        "linear-gradient": [
+          "srgb:0.98000,0.99500,1.00000,1.00000",
+          "srgb:0.75000,0.86000,0.95000,1.00000"
+        ]
+      }
+    },
+    {
+      "appearance": "dark",
+      "value": {
+        "linear-gradient": [
+          "srgb:0.10000,0.15000,0.21000,1.00000",
+          "srgb:0.18000,0.26000,0.34000,1.00000"
+        ]
+      }
+    }
+  ],
+  "groups": [
+    {
+      "blend-mode": "normal",
+      "blur-material": 0.35,
+      "layers": [
+        {
+          "fill-specializations": [
+            {
+              "value": "automatic"
+            },
+            {
+              "appearance": "dark",
+              "value": {
+                "solid": "srgb:0.72000,0.87000,0.98000,1.00000"
+              }
+            }
+          ],
+          "glass": true,
+          "hidden": false,
+          "image-name": "01-Bar.svg",
+          "name": "Ice blue bar 1",
+          "opacity": 0.94
+        },
+        {
+          "fill-specializations": [
+            {
+              "value": "automatic"
+            },
+            {
+              "appearance": "dark",
+              "value": {
+                "solid": "srgb:0.72000,0.87000,0.98000,1.00000"
+              }
+            }
+          ],
+          "glass": true,
+          "hidden": false,
+          "image-name": "02-Bar.svg",
+          "name": "Ice blue bar 2",
+          "opacity": 0.94
+        },
+        {
+          "fill-specializations": [
+            {
+              "value": "automatic"
+            },
+            {
+              "appearance": "dark",
+              "value": {
+                "solid": "srgb:0.72000,0.87000,0.98000,1.00000"
+              }
+            }
+          ],
+          "glass": true,
+          "hidden": false,
+          "image-name": "03-Bar.svg",
+          "name": "Ice blue bar 3",
+          "opacity": 0.94
+        }
+      ],
+      "lighting": "individual",
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.3
+      },
+      "specular": true,
+      "translucency": {
+        "enabled": true,
+        "value": 0.12
+      }
+    }
+  ],
+  "supported-platforms": {
+    "squares": "shared"
+  }
+}

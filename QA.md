@@ -14,6 +14,15 @@ Version 1.1.0 · 2026-10-04
 - Homebrew Cask syntax and `brew style` pass; its SHA-256 matches the verified universal ZIP. Public asset download and isolated Homebrew install/uninstall remain pending publication.
 - Universal binary builds for arm64 and x86_64. The archived app passes strict ad-hoc signature verification; ZIP and DMG integrity checks pass.
 
+## Native icon checks
+
+- Official Icon Composer 1.2 and Xcode 27.0 are installed on the development Mac. The original `.icon` document renders successfully through Apple's `ictool` in Default, Dark, ClearLight and TintedDark, with no baked glass effects in the SVG layers. All four 1024-pixel previews were visually inspected.
+- Exports at two light angles differ, confirming that the renderer uses the document's lighting. Preview exports are static images, not evidence of a Finder/Dock animation.
+- Xcode `actool` compiles the document for a macOS 14 deployment target without warnings or errors. The generated Info.plist supplies `CFBundleIconName=AppIcon`; `Assets.car` contains three native appearance stacks and three-vector-layer groups with lighting and specular material. `assetutil` validates its structural integrity.
+- Small generated compatibility icons were visually inspected at 32 and 128 pixels. Universal native builds and Command Line Tools-only fallback builds are checked separately; required-native mode rejects a Command Line Tools-only toolchain.
+- The release workflow requires native compilation, and packaging rechecks the extracted signed app's native assets before creating the DMG. End users do not need Xcode or Icon Composer.
+- Installed Finder/Dock rendering and the final app UI remain unverified because native app control was not authorized. CLI rendering and catalog validation do not replace those checks.
+
 ## Native UI checks
 
 Checked on Apple Silicon, macOS 27.0.1, with synthetic data and isolated preferences:
@@ -31,4 +40,4 @@ Fixed clipping in the overview, loading counters, uneven summary cards, English 
 
 ## Limits
 
-Login startup has not been tested by logging out/rebooting. Physical multi-display arrangements and an independent other-Mac Gatekeeper first launch have not been tested. Releases are ad-hoc signed, not Apple notarized. The cost build passed all three native CI jobs on macOS 14 Apple Silicon, current Apple Silicon and macOS 15 Intel ([run 37184143925](https://github.com/zhangligong0826/codex-ledger/actions/runs/37184143925)). Headless native tests do not validate Intel UI appearance. The ICNS provides a static glass-style icon, not a native dynamic Icon Composer icon.
+Login startup has not been tested by logging out/rebooting. Physical multi-display arrangements and an independent other-Mac Gatekeeper first launch have not been tested. Releases are ad-hoc signed, not Apple notarized. The cost build passed all three native CI jobs on macOS 14 Apple Silicon, current Apple Silicon and macOS 15 Intel ([run 37184143925](https://github.com/zhangligong0826/codex-ledger/actions/runs/37184143925)). Headless native tests do not validate Intel UI appearance. Native icon support depends on the OS; older systems use flattened compatibility representations.
