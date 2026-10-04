@@ -2,7 +2,7 @@
   #define RID "win-x64"
 #endif
 #ifndef Version
-  #define Version "1.2.0-beta.1"
+  #define Version "1.2.0-beta.2"
 #endif
 [Setup]
 AppId={{761E2C57-FA95-4F8B-9F74-7D6A8E6DBD81}

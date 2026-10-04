@@ -87,6 +87,8 @@ struct SharePreview: Identifiable {
     }
     var busy: Bool { isLoading || isComputing }
     var rangeReady: Bool { renderedScope == scope }
+    var requiresGoalBook: Bool { page == .goals || selectedGoalID != nil || unassignedOnly }
+    var contextReady: Bool { rangeReady && !dataUnavailable && (!requiresGoalBook || goalBookReadable) }
     var logsAreEmpty: Bool { logs.isEmpty && !LedgerPreferences.isDemo }
     var knownModelCount: Int { snapshot.modelUsage.filter { $0.model != "未知模型" }.count }
     var categoryTotals: [(WorkCategory, Int64, Int)] { LedgerAnalytics.categories(snapshot.tasks) }
@@ -228,7 +230,7 @@ struct SharePreview: Identifiable {
     func openChat(_ task: LedgerTask) { openChat(id: task.sessionID) }
     func openChat(id: String) { if let url = URL(string: "codex://threads/\(id)") { NSWorkspace.shared.open(url) } }
     func makeShareCard(overview: Bool = false) {
-        guard rangeReady, activityReady, !busy, !isSharing, !dataUnavailable else { return }
+        guard rangeReady, activityReady, !busy, !isSharing, !dataUnavailable, overview || !requiresGoalBook || goalBookReadable else { return }
         let now = Date(), calendar = scanner.calendar
         let sourceLogs = logs, goalBook = self.goalBook, path = sourcePath, sourceOverrides = overrides
         let goalID = overview ? nil : selectedGoalID, projectID = overview ? nil : selectedProjectID
@@ -287,7 +289,7 @@ struct SharePreview: Identifiable {
         }
     }
     func exportCSV(models modelMode: Bool? = nil, turns: Bool = false) {
-        guard rangeReady, !busy, !dataUnavailable else { return }
+        guard rangeReady, !busy, !dataUnavailable, modelMode != nil || !requiresGoalBook || goalBookReadable else { return }
         let (contents, kind) = csvExport(models: modelMode, turns: turns)
         let panel = NSSavePanel(); panel.allowedContentTypes = [.commaSeparatedText]
         panel.nameFieldStringValue = "Codex-\(kind)-\(L(scope.rawValue))-\(Date().formatted(.iso8601.year().month().day().dateSeparator(.dash))).csv"
@@ -301,6 +303,7 @@ struct SharePreview: Identifiable {
         let contents: String, kind: String
         let names = Dictionary(uniqueKeysWithValues: goalBook.goals.map { ($0.id, $0.name) })
         let goalNames = Dictionary(uniqueKeysWithValues: snapshot.tasks.compactMap { task -> (String, String)? in
+            if !goalBookReadable { return (task.id, L("目标账本无法读取，原有数据已保留。")) }
             guard let id = goalBook.owner(task), let name = names[id] else { return nil }; return (task.id, name)
         })
         if let modelMode {
@@ -338,7 +341,7 @@ struct SharePreview: Identifiable {
         catch { errorMessage = L("目标账本无法保存。") }
     }
     var goals: [GoalUsage] { goalBook.summaries(current: snapshot.tasks, lifetime: lifetime.tasks) }
-    var goalAmountsReady: Bool { lifetimeReady && !dataUnavailable }
+    var goalAmountsReady: Bool { lifetimeReady && !dataUnavailable && goalBookReadable }
     var goal: GoalUsage? { goals.first { $0.id == selectedGoalID } }
     var filteredGoals: [GoalUsage] { goals.filter { search.isEmpty || $0.goal.name.localizedCaseInsensitiveContains(search) || ($0.tasks + $0.lifetimeTasks).contains { [$0.title, $0.projectPath].contains { $0.localizedCaseInsensitiveContains(search) } } } }
     var unassignedTasks: [LedgerTask] { snapshot.tasks.filter { goalBook.owner($0) == nil } }

@@ -41,7 +41,7 @@ jobs:
           New-Item -ItemType Directory -Force $dataDir | Out-Null
           $sentinel = Join-Path $dataDir 'ci-preserve-user-data.txt'
           'ledger-user-data' | Set-Content $sentinel
-          $installer = 'dist/Codex-Ledger-1.2.0-beta.1-Windows-win-x64-Setup.exe'
+          $installer = 'dist/Codex-Ledger-1.2.0-beta.2-Windows-win-x64-Setup.exe'
           1..2 | ForEach-Object {
             $p = Start-Process $installer -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=$dir" -Wait -PassThru
             if ($p.ExitCode -ne 0) { throw 'Installer/upgrade failed' }
@@ -53,7 +53,7 @@ jobs:
           $data = Get-Content "$env:RUNNER_TEMP/diagnostic.json" -Raw | ConvertFrom-Json
           if ($data.total -ne 0 -or $data.dailyUsage.Count -ne 30) { throw 'Empty-source diagnostic failed' }
           $portable = "$env:RUNNER_TEMP/ledger-portable"
-          Expand-Archive 'dist/Codex-Ledger-1.2.0-beta.1-Windows-win-x64-Portable.zip' $portable
+          Expand-Archive 'dist/Codex-Ledger-1.2.0-beta.2-Windows-win-x64-Portable.zip' $portable
           foreach ($file in @('coreclr.dll', 'hostpolicy.dll', 'CodexLedger.exe', 'licenses')) {
             if (-not (Test-Path "$portable/$file")) { throw "Missing self-contained file: $file" }
           }

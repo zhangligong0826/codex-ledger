@@ -208,8 +208,8 @@ import UniformTypeIdentifiers
             Button(L("导出 CSV")) { store.exportCSV(models: overview ? false : nil) }
         } label: { Image(systemName: "square.and.arrow.up") }
         .menuStyle(.borderlessButton).fixedSize()
-        .disabled(store.busy || store.isSharing || !store.rangeReady || !store.activityReady || store.dataUnavailable)
-        .help(L(store.busy || !store.rangeReady ? "正在整理日志，请稍候" : store.dataUnavailable ? "需要检查数据目录" : "分享"))
+        .disabled(store.busy || store.isSharing || !store.rangeReady || !store.activityReady || store.dataUnavailable || (!overview && store.requiresGoalBook && !store.goalBookReadable))
+        .help(L(store.busy || !store.rangeReady ? "正在整理日志，请稍候" : !overview && store.requiresGoalBook && !store.goalBookReadable ? "目标账本无法读取，原有数据已保留。" : store.dataUnavailable ? "需要检查数据目录" : "分享"))
 
     }
 }

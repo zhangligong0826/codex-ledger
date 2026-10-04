@@ -74,9 +74,12 @@ public sealed class LedgerState {
     public string Title=>ChatID!=null?ChatTitle(ChatID):GoalID!=null?Book.Goals.FirstOrDefault(g=>g.ID==GoalID)?.Name??T("目标账本"):ProjectID!=null?Lifetime.Turns.FirstOrDefault(t=>t.Project.ID==ProjectID)?.Project.Name??T("项目"):T(Page switch{"projects"=>"项目","conversations"=>"对话","tasks"=>"全部任务","models"=>"模型用量","settings"=>"设置",_=>"目标账本"});
     public string Range=>T(Scope switch{DateScope.Yesterday=>"昨天",DateScope.Week=>"近 7 天",DateScope.Month=>"近 30 天",DateScope.All=>"历史累计",_=>"今天"});
     public bool Known=>Ready&&(Current.Warnings.Count==0||Lifetime.Turns.Count>0);
-    public bool CanShare=>Ready&&!Busy&&(Current.Warnings.Count==0||Lifetime.Turns.Count>0);
+    public bool RequiresGoalBook=>Page=="goals"||GoalID!=null||UnassignedOnly;
+    public bool ContextKnown=>Known&&(!RequiresGoalBook||BookReadable);
+    public bool CanShareOverview=>Ready&&!Busy&&Known;
+    public bool CanShare=>CanShareOverview&&(!RequiresGoalBook||BookReadable);
     public ShareSnapshot Share(bool overview=false) {
-        if(!CanShare)throw new InvalidOperationException(T("正在整理日志，请稍候"));bool goalList=!overview&&Page=="goals"&&GoalID==null&&ChatID==null;
+        if(!(overview?CanShareOverview:CanShare))throw new InvalidOperationException(T("正在整理日志，请稍候"));bool goalList=!overview&&Page=="goals"&&GoalID==null&&ChatID==null;
         var matchingGoals=Book.Goals.Where(g=>Search.Length==0||g.Name.Contains(Search,StringComparison.OrdinalIgnoreCase)).Select(g=>g.ID).ToHashSet();
         var turns=overview?Current.Turns:goalList?Current.Turns.Where(t=>Book.Owner(t) is string id&&matchingGoals.Contains(id)).ToArray():Filter(Context());
         var monthly=overview?Month.Turns:goalList?Month.Turns.Where(t=>Book.Owner(t) is string id&&matchingGoals.Contains(id)).ToArray():Filter(Context(Month.Turns));var goal=Book.Goals.FirstOrDefault(g=>g.ID==GoalID);

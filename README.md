@@ -6,9 +6,9 @@ A local Codex work ledger for **macOS and Windows**. See what each goal, project
 
 ## Install the free beta
 
-**1.2.0-beta.1** — macOS 14+ (Apple Silicon/Intel), Windows 11 (x64/ARM64).
+**1.2.0-beta.2** — macOS 14+ (Apple Silicon/Intel), Windows 11 (x64/ARM64).
 
-Mac: download the universal DMG from the [release](https://github.com/zhangligong0826/codex-ledger/releases/tag/v1.2.0-beta.1), open it and drag Codex Ledger to Applications. Click the menu-bar icon after launching. Homebrew:
+Mac: download the universal DMG from the [release](https://github.com/zhangligong0826/codex-ledger/releases/tag/v1.2.0-beta.2), open it and drag Codex Ledger to Applications. Click the menu-bar icon after launching. Homebrew:
 
 ```sh
 brew install --cask zhangligong0826/tap/codex-ledger

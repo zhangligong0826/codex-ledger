@@ -1,4 +1,6 @@
-Codex Ledger 1.2.0-beta.1 brings native macOS menu-bar and Windows system-tray accounting together.
+Beta.2 fixes unreadable goal-book handling: goal-dependent amounts become unknown and sharing/export is disabled instead of producing a zero-cost goal card. Independent source usage remains available. CSV is frozen before the save dialog, and share snapshots own immutable daily data. Beta.1 assets remain unchanged.
+
+Codex Ledger 1.2.0-beta.2 brings native macOS menu-bar and Windows system-tray accounting together.
 
 - Privacy-first 1080 × 1440 share cards with estimated USD cost, tokens, 30-day heatmap, completion snapshot and installation QR. Names and paths are hidden by default; preview before sharing.
 - Capture the current app content, copy/save PNG, or export scoped CSV.

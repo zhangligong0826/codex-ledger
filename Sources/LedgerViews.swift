@@ -155,7 +155,7 @@ struct StatusPopover: View {
             if store.busy { HStack { ProgressView().controlSize(.mini); Text(store.scanStatus).font(.system(size: 10)).lineLimit(1); Spacer() }.padding(.horizontal, 14).padding(.bottom, 6) }
             Divider()
             HStack {
-                Text("Codex Ledger \(Bundle.main.object(forInfoDictionaryKey: "LedgerReleaseVersion") as? String ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.2.0-beta.1")").font(.system(size: 9)).foregroundStyle(.secondary)
+                Text("Codex Ledger \(Bundle.main.object(forInfoDictionaryKey: "LedgerReleaseVersion") as? String ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.2.0")").font(.system(size: 9)).foregroundStyle(.secondary)
                 Button { store.refresh() } label: {
                     TimelineView(.periodic(from: .now, by: 1)) { context in
                         Text(store.busy ? L("正在更新…") : L("\(max(0, 30 - Int(context.date.timeIntervalSince(store.today.refreshedAt)))) 秒后更新")).font(.system(size: 9)).foregroundStyle(.secondary).monospacedDigit()
@@ -296,15 +296,15 @@ struct DashboardView: View {
                     if let entry = store.goal { GoalDetailHeader(store: store, entry: entry) }
                     if store.page != .goals {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 145))], spacing: 10) {
-                        SummaryCard(title: L("总 token"), value: store.rangeReady ? compactTokens(store.contextUsage.total) : "…", subtitle: L("输入 + 输出 · 含缓存"), symbol: "chart.bar")
-                        SummaryCard(title: L("任务轮次"), value: store.rangeReady ? "\(store.contextTasks.count)" : "…", subtitle: store.rangeReady ? L("\(store.contextTasks.filter(\.finished).count) 轮已结束") : L("正在整理日志…"), symbol: "square.stack")
-                        SummaryCard(title: L("关联文件"), value: store.rangeReady ? "\(Set(store.contextTasks.flatMap(\.artifacts)).count)" : "…", subtitle: L("已存在的本地文件"), symbol: "doc.on.doc")
-                        SummaryCard(title: L("使用模型"), value: store.rangeReady ? "\(Set(store.contextTasks.flatMap(\.models)).subtracting(["未知模型"]).count)" : "…", subtitle: L("已识别的不同模型"), symbol: "cpu")
+                        SummaryCard(title: L("总 token"), value: store.contextReady ? compactTokens(store.contextUsage.total) : store.rangeReady ? "—" : "…", subtitle: L("输入 + 输出 · 含缓存"), symbol: "chart.bar")
+                        SummaryCard(title: L("任务轮次"), value: store.contextReady ? "\(store.contextTasks.count)" : store.rangeReady ? "—" : "…", subtitle: store.rangeReady ? L("\(store.contextTasks.filter(\.finished).count) 轮已结束") : L("正在整理日志…"), symbol: "square.stack")
+                        SummaryCard(title: L("关联文件"), value: store.contextReady ? "\(Set(store.contextTasks.flatMap(\.artifacts)).count)" : store.rangeReady ? "—" : "…", subtitle: L("已存在的本地文件"), symbol: "doc.on.doc")
+                        SummaryCard(title: L("使用模型"), value: store.contextReady ? "\(Set(store.contextTasks.flatMap(\.models)).subtracting(["未知模型"]).count)" : store.rangeReady ? "—" : "…", subtitle: L("已识别的不同模型"), symbol: "cpu")
                     }
-                    UsageMetrics(usage: store.contextUsage, cost: store.contextCost, pending: !store.rangeReady || store.dataUnavailable)
+                    UsageMetrics(usage: store.contextUsage, cost: store.contextCost, pending: !store.contextReady)
                     } else if store.selectedGoalID != nil {
                         Text(selectedRangeSummary).font(.system(size: 11)).foregroundStyle(.secondary)
-                        UsageMetrics(usage: store.contextUsage, cost: store.contextCost, pending: !store.rangeReady || store.dataUnavailable)
+                        UsageMetrics(usage: store.contextUsage, cost: store.contextCost, pending: !store.contextReady)
                     }
                     if store.busy { HStack { ProgressView().controlSize(.small); Text(store.scanStatus).font(.system(size: 11)).foregroundStyle(.secondary) } }
                     if !store.snapshot.warnings.isEmpty { Text(store.snapshot.warnings.prefix(3).map(L).joined(separator: "\n")).font(.system(size: 11)).foregroundStyle(.orange).textSelection(.enabled) }
@@ -329,7 +329,7 @@ struct DashboardView: View {
     }
     var selectedRangeSummary: String {
         let prefix = L("所选日期") + " · "
-        guard store.rangeReady && !store.dataUnavailable else { return prefix + "—" }
+        guard store.contextReady else { return prefix + "—" }
         let turns = L("\(store.contextTasks.count) 个任务")
         let tokens = compactTokens(store.contextUsage.total) + " tokens"
         return prefix + turns + " · " + tokens

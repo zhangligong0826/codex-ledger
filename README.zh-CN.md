@@ -6,9 +6,9 @@
 
 ## 安装免费测试版
 
-**1.2.0-beta.1**：macOS 14 及以上（Apple 芯片／Intel），Windows 11（x64／ARM64）。
+**1.2.0-beta.2**：macOS 14 及以上（Apple 芯片／Intel），Windows 11（x64／ARM64）。
 
-Mac：从[发布页](https://github.com/zhangligong0826/codex-ledger/releases/tag/v1.2.0-beta.1)下载 universal DMG，打开后把 Codex Ledger 拖到 Applications，启动后点击菜单栏图标。也可以使用 Homebrew：
+Mac：从[发布页](https://github.com/zhangligong0826/codex-ledger/releases/tag/v1.2.0-beta.2)下载 universal DMG，打开后把 Codex Ledger 拖到 Applications，启动后点击菜单栏图标。也可以使用 Homebrew：
 
 ```sh
 brew install --cask zhangligong0826/tap/codex-ledger

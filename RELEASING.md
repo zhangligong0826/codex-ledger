@@ -1,6 +1,6 @@
 # Releasing
 
-1. Update `LedgerReleaseVersion` (asset/tag version), numeric `CFBundleShortVersionString` and `CFBundleVersion` in Info.plist. Match the Windows project/package version and the download-page version. For this beta the asset/tag version is `1.2.0-beta.1` and numeric app version is `1.2.0`.
+1. Update `LedgerReleaseVersion` (asset/tag version), numeric `CFBundleShortVersionString` and `CFBundleVersion` in Info.plist. Match the Windows project/package version and the download-page version. For this beta the asset/tag version is `1.2.0-beta.2` and numeric app version is `1.2.0`.
 2. Run `zsh test.sh` and `dotnet run --project Windows/Ledger.Tests`; update the actual validation record. Test sharing, date/context scopes, title privacy, unknown costs and completion baselines. No personal logs, exports or screenshots may be committed.
 3. Push reviewed source. Require all three macOS CI jobs and the Windows workflow to succeed. Windows validates native x64 execution, synthetic UI, install/upgrade/uninstall and cross-builds ARM64. Physical-device checks are recorded separately.
 4. Tag the checked commit `v<LedgerReleaseVersion>`, push the tag, then dispatch **Draft cross-platform release** on that tag. It runs both platforms, requires native Mac icon compilation, produces explicit assets and verifies each producer's checksums before generating a combined CHECKSUMS.txt.

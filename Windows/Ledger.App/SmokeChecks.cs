@@ -26,6 +26,12 @@ public static class SmokeChecks {
             try{ShareRendering.Save(card,Path.Combine(output,"missing-folder","failure.png"));throw new Exception("Expected save failure");}catch(DirectoryNotFoundException){}
 
             if(!window.ExportContents().Contains("Private goal"))throw new Exception("CSV goal summary");state.Current=original;window.ShowOverview();window.UpdateLayout();ShareRendering.Save(ShareRendering.Capture((System.Windows.FrameworkElement)window.Content),Path.Combine(output,"overview.png"));
+            var oldBook=state.Book;state.Book=new();state.BookReadable=false;state.Error="目标账本无法读取，原有数据已保留。";state.Navigate("goals");window.ShowDashboard();window.UpdateLayout();
+            if(state.ContextKnown||state.CanShare)throw new Exception("Unreadable attribution must not be known zero");
+            try{state.Share();throw new Exception("Unreadable goal share must fail");}catch(InvalidOperationException){}
+            if(state.Share(true).Usage.Total!=state.Current.Usage.Total)throw new Exception("Independent overview should remain available");
+            ShareRendering.Save(ShareRendering.Capture((FrameworkElement)window.Content),Path.Combine(output,"book-error.png"));
+            state.Book=oldBook;state.BookReadable=true;state.Error="";state.Navigate("goals");window.ShowOverview();
             var good=state.Current;state.Current=new([],[],0,0);state.Month=state.Current;state.Lifetime=state.Current;state.Ready=true;window.ShowOverview();window.UpdateLayout();ShareRendering.Save(ShareRendering.Capture((FrameworkElement)window.Content),Path.Combine(output,"empty.png"));if(!state.Known)throw new Exception("valid empty is known");
             state.Ready=false;state.Notify();if(state.CanShare)throw new Exception("loading export gate");window.UpdateLayout();ShareRendering.Save(ShareRendering.Capture((FrameworkElement)window.Content),Path.Combine(output,"loading.png"));
             state.Ready=true;state.Current=new([],new[]{"Unreadable fixture source"},0,0);state.Notify();if(state.Known||state.CanShare)throw new Exception("error must not be known zero");window.UpdateLayout();ShareRendering.Save(ShareRendering.Capture((FrameworkElement)window.Content),Path.Combine(output,"error.png"));

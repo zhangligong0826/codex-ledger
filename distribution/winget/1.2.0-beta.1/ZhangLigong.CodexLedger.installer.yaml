@@ -1,0 +1,15 @@
+PackageIdentifier: ZhangLigong.CodexLedger
+PackageVersion: 1.2.0-beta.1
+MinimumOSVersion: 10.0.22000.0
+InstallerType: inno
+Scope: user
+UpgradeBehavior: install
+Installers:
+  - Architecture: x64
+    InstallerUrl: https://github.com/zhangligong0826/codex-ledger/releases/download/v1.2.0-beta.1/Codex-Ledger-1.2.0-beta.1-Windows-win-x64-Setup.exe
+    InstallerSha256: BD060B6AE62FB1EE7B015D68BD0964DCE76639C4CEC4B393B9EFEE18CA7A1ADD
+  - Architecture: arm64
+    InstallerUrl: https://github.com/zhangligong0826/codex-ledger/releases/download/v1.2.0-beta.1/Codex-Ledger-1.2.0-beta.1-Windows-win-arm64-Setup.exe
+    InstallerSha256: 030ED7766D7B9DD141B38318630140DB8231FBB59D074DC3D013C8FCB894F6E0
+ManifestType: installer
+ManifestVersion: 1.9.0

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.0-beta.2
+
+- Unreadable goal books display unknown amounts and block goal-dependent card/CSV generation; raw usage remains available.
+- Freeze CSV before its save dialog and copy share activity into an immutable collection.
+- Existing Beta.1 packages and checksums remain unchanged.
+
 ## 1.2.0-beta.1
 
 - Native Windows tray app, x64/ARM64 self-contained installers and portable packages.

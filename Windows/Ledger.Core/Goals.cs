@@ -29,6 +29,7 @@ public static class LocalFiles {
     }
 }
 public sealed record ShareSnapshot(string Kind,string PrivateTitle,string Range,string Timezone,TokenUsage Usage,CostEstimate Cost,int Turns,int Conversations,int Models,IReadOnlyList<DailyUsage> Days,CostEstimate? CompletionCost,DateTimeOffset? CompletionDate,string? CompletionPriceDate,bool Filtered,bool Warning,string PriceDate) {
+    public IReadOnlyList<DailyUsage> Days { get; } = Array.AsReadOnly(Days.ToArray());
     public const string DownloadURL="https://zhangligong0826.github.io/codex-ledger/";
     public TokenUsage MonthlyUsage=>Days.Aggregate(new TokenUsage(),(a,d)=>a+d.Usage);
     public CostEstimate MonthlyCost=>Days.Aggregate(new CostEstimate(),(a,d)=>a+d.Cost);
