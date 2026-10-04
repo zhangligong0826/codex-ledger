@@ -2,6 +2,8 @@
 
 ## 1.1.0
 
+- Offline Standard API cost estimates in USD across all scopes, per-response long-context pricing, cache-aware accounting, unpriced coverage and matching CSV fields.
+
 - Project → conversation → task-turn accounting, repository/worktree grouping, cross-project scopes, local titles, search and CSV summaries.
 - Per-conversation model and category distribution; turn CSV includes project and working-directory paths.
 - Fixed overview clipping, loading counters, page scroll restoration, minimum-window layout, card alignment and English labels.

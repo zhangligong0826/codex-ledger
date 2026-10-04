@@ -7,7 +7,7 @@ STAGING_DIR="$(mktemp -d /private/tmp/codex-ledger-build.XXXXXX)"
 STAGED_APP="$STAGING_DIR/Codex Ledger.app"
 trap 'rm -rf "$STAGING_DIR"' EXIT
 mkdir -p "$STAGED_APP/Contents/MacOS" "$STAGED_APP/Contents/Resources" "$PROJECT_DIR/.build/swift-cache" "$OUTPUT_DIR"
-SOURCES=("$PROJECT_DIR/Sources/LedgerCore.swift" "$PROJECT_DIR/Sources/LedgerAnalytics.swift" "$PROJECT_DIR/Sources/LedgerDemo.swift" "$PROJECT_DIR/Sources/LedgerStore.swift" "$PROJECT_DIR/Sources/LedgerViews.swift" "$PROJECT_DIR/Sources/Localization.swift" "$PROJECT_DIR/Sources/CodexLedger.swift")
+SOURCES=("$PROJECT_DIR/Sources/LedgerPricing.swift" "$PROJECT_DIR/Sources/LedgerCore.swift" "$PROJECT_DIR/Sources/LedgerAnalytics.swift" "$PROJECT_DIR/Sources/LedgerDemo.swift" "$PROJECT_DIR/Sources/LedgerStore.swift" "$PROJECT_DIR/Sources/LedgerViews.swift" "$PROJECT_DIR/Sources/Localization.swift" "$PROJECT_DIR/Sources/CodexLedger.swift")
 case "$BUILD_ARCH" in
   universal) ARCHS=(arm64 x86_64) ;;
   arm64|x86_64) ARCHS=("$BUILD_ARCH") ;;

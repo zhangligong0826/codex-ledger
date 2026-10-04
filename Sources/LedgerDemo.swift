@@ -19,11 +19,22 @@ enum LedgerDemo {
             let (projectIndex, session, category, total, title) = entry, project = projects[projectIndex]
             var usage = TokenUsage(); usage.input = total - total / 100; usage.cached = total / 2; usage.output = total / 100; usage.reasoning = usage.output / 3
             let date = Date().addingTimeInterval(Double(-index * 600))
-            result.tasks.append(LedgerTask(id: "demo-turn-\(index)", sessionID: session, title: title, category: category, reason: "一般问答；可在任务详情中修正", usage: usage, date: date, models: [index % 2 == 0 ? "model-alpha" : "model-beta"], artifacts: [], finished: true, responses: index + 1, subagentResponses: 0, workingDirectory: project.path, projectID: project.id, projectName: project.name, projectPath: project.path, lastActivity: date))
+            let model = index == 7 ? "demo-unpriced-model" : index % 2 == 0 ? "gpt-6.1-sol" : "gpt-5.5"
+            result.tasks.append(LedgerTask(id: "demo-turn-\(index)", sessionID: session, title: title, category: category, reason: "一般问答；可在任务详情中修正", usage: usage, date: date, models: [model], artifacts: [], finished: true, responses: index + 1, subagentResponses: 0, workingDirectory: project.path, projectID: project.id, projectName: project.name, projectPath: project.path, lastActivity: date))
         }
         for index in result.tasks.indices {
             let task = result.tasks[index]
-            result.tasks[index].modelUsage = [ModelUsage(model: task.models[0], usage: task.usage, responses: task.responses, taskIDs: [task.id])]
+            // Each fixture represents several responses. Split before pricing too.
+            let count = Int64(task.responses)
+            var cost = CostEstimate()
+            for call in 0..<count {
+                var part = TokenUsage()
+                func split(_ value: Int64) -> Int64 { value / count + (call < value % count ? 1 : 0) }
+                part.input = split(task.usage.input); part.cached = split(task.usage.cached)
+                part.output = split(task.usage.output); part.reasoning = split(task.usage.reasoning)
+                cost = cost + LedgerPricing.estimate(model: task.models[0], usage: part)
+            }
+            result.tasks[index].modelUsage = [ModelUsage(model: task.models[0], usage: task.usage, responses: task.responses, taskIDs: [task.id], cost: cost)]
         }
         result.tasks.sort { $0.usage.total > $1.usage.total }
         let titles = ["demo-chat-1": "Analytics architecture", "demo-chat-2": "Launch presentation", "demo-chat-3": "Research report", "demo-chat-4": "Application icon", "demo-chat-5": "Codex 后台检查"]
@@ -33,10 +44,7 @@ enum LedgerDemo {
             let tasks = result.tasks.filter { $0.projectID == project.id }
             return ProjectUsage(identity: project, tasks: tasks, conversations: LedgerAnalytics.conversations(tasks, titles: titles, projectSets: sets))
         }.sorted { $0.usage.total > $1.usage.total }
-        result.modelUsage = ["model-alpha", "model-beta"].map { name in
-            let tasks = result.tasks.filter { $0.models.contains(name) }
-            return ModelUsage(model: name, usage: tasks.reduce(TokenUsage()) { $0 + $1.usage }, responses: tasks.reduce(0) { $0 + $1.responses }, taskIDs: Set(tasks.map(\.id)))
-        }
+        result.modelUsage = LedgerAnalytics.models(result.tasks)
         return result
     }
 }

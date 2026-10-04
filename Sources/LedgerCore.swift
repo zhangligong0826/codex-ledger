@@ -87,6 +87,8 @@ struct UsageSample: Codable {
     var date: Date
     var model: String
     var usage: TokenUsage
+    var hasRequestUsage = true
+    var cost: CostEstimate { LedgerPricing.estimate(model: model, usage: usage, hasRequestUsage: hasRequestUsage) }
 }
 
 struct TurnInfo: Codable {
@@ -137,6 +139,9 @@ struct LedgerTask: Identifiable {
     var projectPath = ""
     var lastActivity = Date.distantPast
     var modelUsage: [ModelUsage] = []
+    var cost: CostEstimate {
+        modelUsage.isEmpty ? CostEstimate(unpricedTokens: usage.total) : modelUsage.reduce(CostEstimate()) { $0 + $1.cost }
+    }
 }
 
 struct LedgerSnapshot {
@@ -150,6 +155,7 @@ struct LedgerSnapshot {
     var refreshedAt = Date()
     var sourcePath = ""
     var usage: TokenUsage { tasks.reduce(TokenUsage()) { $0 + $1.usage } }
+    var cost: CostEstimate { LedgerPricing.total(tasks) }
 }
 
 struct ModelUsage: Identifiable {
@@ -158,6 +164,11 @@ struct ModelUsage: Identifiable {
     var usage = TokenUsage()
     var responses = 0
     var taskIDs = Set<String>()
+    var cost = CostEstimate()
+    init(model: String, usage: TokenUsage = TokenUsage(), responses: Int = 0, taskIDs: Set<String> = [], cost: CostEstimate? = nil) {
+        self.model = model; self.usage = usage; self.responses = responses; self.taskIDs = taskIDs
+        self.cost = cost ?? CostEstimate(unpricedTokens: usage.total)
+    }
 }
 
 enum LedgerCSV {
@@ -167,16 +178,22 @@ enum LedgerCSV {
         return "\"" + text.replacingOccurrences(of: "\"", with: "\"\"") + "\""
     }
     static func render(_ tasks: [LedgerTask], translate: (String) -> String = { $0 }) -> String {
-        var rows = [["时间", "任务", "分类", "输入tokens", "缓存输入tokens", "输出tokens", "推理输出tokens", "总tokens", "模型", "关联文件", "聊天ID", "分类依据", "项目", "项目路径", "工作目录"].map(translate).joined(separator: ",")]
-        rows += tasks.map { task in
-            [task.date.formatted(.iso8601), task.title, translate(task.category.title), String(task.usage.input), String(task.usage.cached), String(task.usage.output), String(task.usage.reasoning), String(task.usage.total), task.models.map(translate).joined(separator: "; "), task.artifacts.joined(separator: "; "), task.sessionID, translate(task.reason), task.projectName == ProjectIdentity.unknown.name ? translate(task.projectName) : task.projectName, task.projectPath, task.workingDirectory].map(field).joined(separator: ",")
+        let header = ["时间", "任务", "分类", "输入tokens", "缓存输入tokens", "输出tokens", "推理输出tokens", "总tokens", "模型", "关联文件", "聊天ID", "分类依据", "项目", "项目路径", "工作目录"] + LedgerPricing.csvHeaders
+        var rows = [header.map(translate).joined(separator: ",")]
+        rows += tasks.map { task -> String in
+            let usage = task.usage
+            let project = task.projectName == ProjectIdentity.unknown.name ? translate(task.projectName) : task.projectName
+            let values: [String] = [task.date.formatted(.iso8601), task.title, translate(task.category.title), String(usage.input), String(usage.cached), String(usage.output), String(usage.reasoning), String(usage.total), task.models.map(translate).joined(separator: "; "), task.artifacts.joined(separator: "; "), task.sessionID, translate(task.reason), project, task.projectPath, task.workingDirectory]
+            return (values + LedgerPricing.csvValues(task.cost)).map(field).joined(separator: ",")
         }
         return "\u{feff}" + rows.joined(separator: "\r\n")
     }
     static func renderModels(_ models: [ModelUsage], translate: (String) -> String = { $0 }) -> String {
-        var rows = [["模型", "调用次数", "相关任务数", "输入tokens", "缓存输入tokens", "输出tokens", "推理输出tokens", "总tokens"].map(translate).joined(separator: ",")]
+        let header = ["模型", "调用次数", "相关任务数", "输入tokens", "缓存输入tokens", "输出tokens", "推理输出tokens", "总tokens"] + LedgerPricing.csvHeaders
+        var rows = [header.map(translate).joined(separator: ",")]
         rows += models.map { model in
-            [translate(model.model), String(model.responses), String(model.taskIDs.count), String(model.usage.input), String(model.usage.cached), String(model.usage.output), String(model.usage.reasoning), String(model.usage.total)].map(field).joined(separator: ",")
+            let values = [translate(model.model), String(model.responses), String(model.taskIDs.count), String(model.usage.input), String(model.usage.cached), String(model.usage.output), String(model.usage.reasoning), String(model.usage.total)]
+            return (values + LedgerPricing.csvValues(model.cost)).map(field).joined(separator: ",")
         }
         return "\u{feff}" + rows.joined(separator: "\r\n")
     }
@@ -336,7 +353,7 @@ final class LogParser {
                 let turn = p["turn_id"] as? String ?? currentTurn
                 let root = p["root_turn_id"] as? String ?? rootTurn
                 if result.turns[turn] == nil { result.turns[turn] = TurnInfo(id: turn, sessionID: result.sessionID, rootTurnID: root, prompt: lastPrompt, model: currentModel, start: stamp, inheritedCategory: previousCategory, workingDirectory: currentDirectory) }
-                if stamp >= cutoff { structured.append(UsageSample(id: response, sessionID: result.sessionID, turnID: turn, rootTurnID: root, date: stamp, model: currentModel, usage: TokenUsage(usage))) }
+                if stamp >= cutoff { structured.append(UsageSample(id: response, sessionID: result.sessionID, turnID: turn, rootTurnID: root, date: stamp, model: p["model"] as? String ?? currentModel, usage: TokenUsage(usage))) }
                 result.usesResponseRecords = true
                 return
             }
@@ -348,7 +365,8 @@ final class LogParser {
                 let signature = "\(result.sessionID):\(currentTurn):\(stamp.timeIntervalSince1970):\(now.input):\(now.output)"
                 guard legacySeen.insert(signature).inserted else { return }
                 ensureTurn(stamp)
-                legacy.append(UsageSample(id: signature, sessionID: result.sessionID, turnID: currentTurn, rootTurnID: rootTurn, date: stamp, model: currentModel, usage: delta))
+                let last = (info["last_token_usage"] as? [String: Any]).map(TokenUsage.init)
+                legacy.append(UsageSample(id: signature, sessionID: result.sessionID, turnID: currentTurn, rootTurnID: rootTurn, date: stamp, model: currentModel, usage: delta, hasRequestUsage: last == delta))
                 return
             }
             if type == "event_msg", p["type"] as? String == "task_complete" {
@@ -472,6 +490,7 @@ final class LedgerScanner: @unchecked Sendable {
                 groups[key, default: []].append(sample)
                 var model = models[sample.model] ?? ModelUsage(model: sample.model)
                 model.usage = model.usage + sample.usage; model.responses += 1; model.taskIDs.insert(key)
+                model.cost = model.cost + sample.cost
                 models[sample.model] = model
             }
         }
@@ -484,7 +503,7 @@ final class LedgerScanner: @unchecked Sendable {
             let title = info?.prompt.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             var task = LedgerTask(id: key, sessionID: info?.sessionID ?? first.sessionID, title: title.isEmpty ? (auto.0 == .background ? "Codex 后台检查" : "未记录用户请求") : String(title.prefix(200)), category: override ?? auto.0, reason: override == nil ? auto.1 : "你手动设置的分类", usage: samples.reduce(TokenUsage()) { $0 + $1.usage }, date: first.date, models: Array(Set(samples.map(\.model))).sorted(), artifacts: artifacts, finished: info?.finished ?? false, responses: samples.count, subagentResponses: samples.filter { subagentIDs.contains($0.id) }.count, workingDirectory: info?.workingDirectory ?? "", lastActivity: samples.map(\.date).max() ?? first.date)
             task.modelUsage = Dictionary(grouping: samples, by: \.model).map { name, calls in
-                ModelUsage(model: name, usage: calls.reduce(TokenUsage()) { $0 + $1.usage }, responses: calls.count, taskIDs: [key])
+                ModelUsage(model: name, usage: calls.reduce(TokenUsage()) { $0 + $1.usage }, responses: calls.count, taskIDs: [key], cost: calls.reduce(CostEstimate()) { $0 + $1.cost })
             }.sorted { $0.usage.total > $1.usage.total }
             result.tasks.append(task)
         }

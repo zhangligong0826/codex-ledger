@@ -1,18 +1,65 @@
 import AppKit
 import SwiftUI
 
+// Resolve the long-established wrapper in type position: newer SDKs also
+// export a State macro, whose compiler plugin is absent from Command Line Tools.
+private typealias LedgerViewState<Value> = State<Value>
+
 struct UsageMetrics: View {
     var usage: TokenUsage
+    var cost: CostEstimate? = nil
     var pending = false
     var body: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 125), alignment: .leading)], alignment: .leading, spacing: 10) {
-            metric("输入", usage.input); metric("其中缓存", usage.cached)
-            metric("输出", usage.output); metric("其中推理", usage.reasoning)
+        VStack(alignment: .leading, spacing: 8) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 125), alignment: .leading)], alignment: .leading, spacing: 10) {
+                metric("输入", usage.input); metric("其中缓存", usage.cached)
+                metric("输出", usage.output); metric("其中推理", usage.reasoning)
+            }
+            if let cost = cost { CostMetric(cost: cost, pending: pending) }
         }
     }
     func metric(_ label: String, _ value: Int64) -> some View {
         HStack(spacing: 5) { Text(L(label)).foregroundStyle(.secondary); Text(pending ? "—" : compactTokens(value)).monospacedDigit() }
             .font(.system(size: 11)).help(pending ? L("正在汇总用量…") : exactTokens(value) + " tokens")
+    }
+}
+
+struct CostMetric: View {
+    var cost: CostEstimate
+    var pending = false
+    @LedgerViewState private var showDetails = false
+    var body: some View {
+        HStack(spacing: 6) {
+            Label(L("预估 API 花费"), systemImage: "dollarsign.circle").foregroundStyle(.secondary).lineLimit(1)
+            Text(pending ? "—" : LedgerPricing.display(cost)).fontWeight(.medium).monospacedDigit().fixedSize()
+            Text("USD").foregroundStyle(.secondary).font(.system(size: 9))
+            Spacer(minLength: 0)
+            Button { showDetails.toggle() } label: { Image(systemName: "info.circle").foregroundStyle(.secondary) }
+                .buttonStyle(.plain).help(L("查看金额计算依据")).disabled(pending)
+                .popover(isPresented: $showDetails) { CostDetails(cost: cost).padding(16).frame(width: 310) }
+        }.font(.system(size: 11)).help(pending ? L("正在汇总用量…") : L("预估金额，不是订阅账单。"))
+    }
+}
+
+struct CostDetails: View {
+    var cost: CostEstimate
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(L("预估 API 花费")).font(.system(size: 14, weight: .semibold))
+            Text(LedgerPricing.display(cost) + " USD").font(.system(size: 21, weight: .semibold, design: .rounded))
+            breakdown("输入（不含缓存）", cost.inputUSD)
+            breakdown("缓存输入", cost.cachedUSD)
+            breakdown("输出", cost.outputUSD)
+            if cost.unpricedTokens > 0 { Text(L("未计价用量") + " · " + compactTokens(cost.unpricedTokens) + " tokens").foregroundStyle(.orange) }
+            if cost.unverifiedContextTokens > 0 { Text(L("上下文未确认") + " · " + compactTokens(cost.unverifiedContextTokens) + " tokens").foregroundStyle(.secondary) }
+            Divider()
+            Text(L(LedgerPricing.explanation)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            Text(L("价格核对日期") + " · " + LedgerPricing.verifiedDate).foregroundStyle(.secondary)
+            Link(L("OpenAI 官方价格"), destination: LedgerPricing.sourceURL)
+        }.font(.system(size: 11))
+    }
+    func breakdown(_ title: String, _ value: Decimal) -> some View {
+        HStack { Text(L(title)); Spacer(); Text(LedgerPricing.money(value)).monospacedDigit() }
     }
 }
 
@@ -47,6 +94,7 @@ struct StatusPopover: View {
                             Spacer()
                             Text(store.rangeReady ? L("输入 \(compactTokens(store.snapshot.usage.input)) · 输出 \(compactTokens(store.snapshot.usage.output))") : "—")
                         }.font(.system(size: 10)).foregroundStyle(.secondary)
+                        CostMetric(cost: store.snapshot.cost, pending: !store.rangeReady)
                     }.padding(10).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
                     HStack {
                         Label(L("任务用途"), systemImage: "chart.bar.xaxis").font(.system(size: 11, weight: .semibold))
@@ -151,7 +199,7 @@ struct DashboardView: View {
                         SummaryCard(title: L("关联文件"), value: store.rangeReady ? "\(Set(store.contextTasks.flatMap(\.artifacts)).count)" : "…", subtitle: L("已存在的本地文件"), symbol: "doc.on.doc")
                         SummaryCard(title: L("使用模型"), value: store.rangeReady ? "\(Set(store.contextTasks.flatMap(\.models)).subtracting(["未知模型"]).count)" : "…", subtitle: L("已识别的不同模型"), symbol: "cpu")
                     }
-                    UsageMetrics(usage: store.contextUsage, pending: !store.rangeReady)
+                    UsageMetrics(usage: store.contextUsage, cost: store.contextCost, pending: !store.rangeReady)
                     if store.busy { HStack { ProgressView().controlSize(.small); Text(store.scanStatus).font(.system(size: 11)).foregroundStyle(.secondary) } }
                     if !store.snapshot.warnings.isEmpty { Text(store.snapshot.warnings.prefix(3).map(L).joined(separator: "\n")).font(.system(size: 11)).foregroundStyle(.orange).textSelection(.enabled) }
                     HStack {
@@ -223,14 +271,16 @@ struct DashboardView: View {
         Group {
             if store.filteredProjects.isEmpty { emptyState() }
             else { ScrollView { LazyVStack(spacing: 10) { ForEach(store.filteredProjects) { project in
-                Button { store.openProject(project) } label: {
-                    VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Button { store.openProject(project) } label: {
+                      VStack(alignment: .leading, spacing: 10) {
                         rowHeader(displayProject(project.name), "folder", project.usage.total)
                         Text(project.path.isEmpty ? L("缺少工作目录") : project.path).font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary).lineLimit(2).help(project.path)
                         Text(projectSubtitle(project)).font(.system(size: 11)).foregroundStyle(.secondary)
-                        UsageMetrics(usage: project.usage)
-                    }.padding(15).frame(maxWidth: .infinity, alignment: .leading).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12)).contentShape(Rectangle())
-                }.buttonStyle(.plain)
+                      }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+                    }.buttonStyle(.plain)
+                    UsageMetrics(usage: project.usage, cost: project.cost)
+                }.padding(15).frame(maxWidth: .infinity, alignment: .leading).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
             } } } }
         }
     }
@@ -238,8 +288,9 @@ struct DashboardView: View {
         Group {
             if store.filteredConversations.isEmpty { emptyState() }
             else { ScrollView { LazyVStack(spacing: 10) { ForEach(store.filteredConversations) { chat in
-                Button { store.openConversation(chat) } label: {
-                    VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Button { store.openConversation(chat) } label: {
+                      VStack(alignment: .leading, spacing: 10) {
                         rowHeader(displayTitle(chat.title), "bubble.left.and.bubble.right", chat.usage.total)
                         HStack {
                             Text(conversationSubtitle(chat))
@@ -247,9 +298,10 @@ struct DashboardView: View {
                             if chat.spansProjects { Text(L("涉及多个项目")) }
                         }.font(.system(size: 11)).foregroundStyle(.secondary)
                         Text(conversationPaths(chat)).font(.system(size: 10, design: .monospaced)).foregroundStyle(.secondary).lineLimit(2)
-                        UsageMetrics(usage: chat.usage)
-                    }.padding(15).frame(maxWidth: .infinity, alignment: .leading).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12)).contentShape(Rectangle())
-                }.buttonStyle(.plain)
+                      }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+                    }.buttonStyle(.plain)
+                    UsageMetrics(usage: chat.usage, cost: chat.cost)
+                }.padding(15).frame(maxWidth: .infinity, alignment: .leading).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
             } } } }
         }
     }
@@ -266,7 +318,7 @@ struct DashboardView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     rowHeader(L(model.model), "cpu", model.usage.total)
                     Text(L("\(model.taskIDs.count) 个任务 · \(model.responses) 次调用")).font(.system(size: 11)).foregroundStyle(.secondary)
-                    UsageMetrics(usage: model.usage)
+                    UsageMetrics(usage: model.usage, cost: model.cost)
                     HStack { Spacer(); Button(L("查看相关任务")) { store.navigate(.tasks); store.modelFilter = model.model } }
                 }.padding(15).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
             } } } }
@@ -278,7 +330,7 @@ struct DashboardView: View {
                 ScrollView {
                   VStack(alignment: .leading, spacing: 8) {
                     ForEach(chat.modelUsage) { model in
-                        HStack { Text(L(model.model)); Spacer(); Text(compactTokens(model.usage.total)).monospacedDigit(); Text(L("\(model.responses) 次响应")).foregroundStyle(.secondary) }.font(.system(size: 11))
+                        HStack { Text(L(model.model)); Spacer(); Text(compactTokens(model.usage.total)).monospacedDigit(); Text(LedgerPricing.display(model.cost)).monospacedDigit().foregroundStyle(.secondary) }.font(.system(size: 11)).help(L("预估 API 花费") + " · USD")
                     }
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 155), alignment: .leading)], alignment: .leading, spacing: 8) {
                         ForEach(chat.categoryTotals, id: \.0) { category, amount, _ in
@@ -339,6 +391,13 @@ struct DashboardView: View {
                     Picker(L("语言"), selection: Binding(get: { store.language }, set: store.setLanguage)) { Text("English").tag("en"); Text("简体中文").tag("zh") }.frame(maxWidth: 270)
                     Toggle(L("登录时启动"), isOn: Binding(get: { store.launchAtLogin }, set: store.setLogin)).disabled(LedgerPreferences.isDemo)
                     Text(L("登录启动建议在将应用移动到固定位置后开启。右键点击菜单栏图标也可刷新、打开账本或退出。")).font(.system(size: 12)).foregroundStyle(.secondary)
+                }.padding(18).frame(maxWidth: .infinity, alignment: .leading).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(L("金额计算依据")).font(.system(size: 16, weight: .semibold))
+                    Text(L(LedgerPricing.explanation)).font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4).textSelection(.enabled)
+                    Text(L("部分模型未计价时，金额带 *，只包含已知单价的用量；全部未计价时显示“单价未知”。")).font(.system(size: 12)).foregroundStyle(.secondary)
+                    Text(L("价格核对日期") + " · " + LedgerPricing.verifiedDate).font(.system(size: 11)).foregroundStyle(.secondary)
+                    Link(L("OpenAI 官方价格"), destination: LedgerPricing.sourceURL).font(.system(size: 12))
                 }.padding(18).frame(maxWidth: .infinity, alignment: .leading).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
                 VStack(alignment: .leading, spacing: 12) {
                     Text(L("如何理解数字")).font(.system(size: 16, weight: .semibold))

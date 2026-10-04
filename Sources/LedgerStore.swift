@@ -163,6 +163,7 @@ enum LedgerPreferences {
     }
     var filteredModels: [ModelUsage] { snapshot.modelUsage.filter { search.isEmpty || L($0.model).localizedCaseInsensitiveContains(search) } }
     var contextUsage: TokenUsage { contextTasks.reduce(TokenUsage()) { $0 + $1.usage } }
+    var contextCost: CostEstimate { LedgerPricing.total(contextTasks) }
     var contextCategories: [(WorkCategory, Int64, Int)] { LedgerAnalytics.categories(contextTasks) }
     func override(task: LedgerTask, category: WorkCategory?) {
         if let category { overrides[task.id] = category.rawValue } else { overrides.removeValue(forKey: task.id) }

@@ -4,6 +4,14 @@ import Foundation
 enum LedgerText {
     static var language = "en"
     static let english: [String: String] = [
+        "预估 API 花费": "Estimated API cost", "单价未知": "Unpriced", "查看金额计算依据": "View cost calculation",
+        "预估金额，不是订阅账单。": "Estimated cost, not a subscription bill.", "输入（不含缓存）": "Uncached input", "缓存输入": "Cached input",
+        "未计价用量": "Unpriced tokens", "上下文未确认": "Context unverified", "价格核对日期": "Prices verified",
+        "OpenAI 官方价格": "Official OpenAI pricing", "金额计算依据": "Cost calculation",
+        "预估API花费USD": "Estimated API cost USD", "已计价tokens": "Priced tokens", "未计价tokens": "Unpriced tokens",
+        "上下文未确认tokens": "Context unverified tokens", "价格口径": "Pricing basis",
+        "部分模型未计价时，金额带 *，只包含已知单价的用量；全部未计价时显示“单价未知”。": "An asterisk marks a partial estimate that includes only known model prices. Fully unpriced usage is shown as Unpriced.",
+        "按已核对的标准 API 单价估算美元金额，不是订阅账单或实际扣款。缓存输入单独计价，推理已包含在输出中。长上下文按每次响应判断；旧日志无法确认上下文时使用短上下文单价。未包含缓存写入溢价、Fast 等服务档位差异、工具费及税费。历史用量也使用此价格快照。": "A USD estimate using verified Standard API rates, not a subscription bill or actual charge. Cached input uses its own rate; reasoning is already included in output. Long context is evaluated per response. Older logs with unverified context use short-context rates. Cache-write premiums, service-tier differences such as Fast mode, tool fees, and taxes are excluded. Historical usage also uses this price snapshot.",
         "项目": "Projects", "对话": "Conversations", "未识别项目": "Unidentified project", "缺少工作目录": "Working directory unavailable",
         "查看项目与对话": "View projects & conversations", "项目中的对话": "Conversations in this project", "返回": "Back",
         "仅当前项目": "This project only", "整个对话": "Entire conversation", "涉及多个项目": "Multiple projects", "最近活动": "Last active",

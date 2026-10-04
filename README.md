@@ -33,6 +33,7 @@ Uninstalling does not remove your Codex logs. Keep one installed copy; when movi
 - **Projects → Conversations → Task turns**, including input, cached input, output, reasoning output, models, work categories, and recent activity.
 - Repositories combine subdirectories and linked worktrees. Ordinary folders remain separate by full path. Unidentified projects retain usage.
 - Conversations spanning projects are split by each turn's working directory. Project views show that project's share; global conversations show full usage within the selected date range.
+- **Estimated API cost in USD**, including input/cache/output breakdowns, project/conversation/turn/model costs and explicit unpriced coverage.
 - Search project names, paths, conversation titles, requests, and models. Export project/conversation summaries, task turns, or model usage as CSV.
 - English by default, Simplified Chinese, and System/Light/Dark. Optional launch at login and menu bar token count.
 - Local rule-based classification with manual corrections. Open the original Codex chat or linked local files.
@@ -46,6 +47,8 @@ The overview is at most **340 × 460 points**, with a fixed header/footer and sc
 Modern logs use response IDs for deduplication and exclude inherited conversation copies. Legacy logs use cumulative deltas and handle resets. Child-agent responses matching a parent turn belong to its task and project. Unmatched internal activity remains visible. Project, conversation, task, and model totals come from the same deduplicated calls.
 
 Only readable local `sessions` and `archived_sessions` logs are covered. Other devices, cloud-only work, deleted logs, and unrecorded usage may be absent. These numbers are **not subscription quota percentages or a billing statement**. Classification is a heuristic; it can be corrected. Linked files are existing paths found in logs, not proof that an artifact was completed.
+
+Costs use bundled [official OpenAI Standard API prices](https://developers.openai.com/api/docs/pricing), verified **2026-10-04**, applied to deduplicated responses. Cached input is charged at its own rate; reasoning is already included in output. Long-context pricing is evaluated per response, never on project totals. Unverified legacy context uses short-context rates. Unknown model names are not guessed: partial estimates carry `*`, and fully unpriced usage shows **Unpriced** rather than $0. Historical usage also uses the current bundled snapshot, including promotional prices. Cache-write premiums, Fast/Batch/Flex differences, tool fees and taxes are excluded. A subscription does not charge this amount per token. CSV preserves decimal precision and includes priced/unpriced coverage and the price date. See [pricing details](PRICING.md).
 
 The app makes **no network requests**, uses no API key, calls no model, reads no login credentials, and uploads no chats. Local conversation titles are read from compatible SQLite metadata in read-only mode; missing or incompatible metadata falls back to log requests. Git discovery uses read-only `rev-parse` commands. The scan index stays in memory; preferences and classification overrides use local UserDefaults. CSV is written only on export and may contain private titles and paths.
 

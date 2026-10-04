@@ -52,6 +52,7 @@ struct ConversationUsage: Identifiable {
     // This is the full conversation's project set, even in a project-scoped view.
     var projectIDs: Set<String>
     var usage: TokenUsage { tasks.reduce(TokenUsage()) { $0 + $1.usage } }
+    var cost: CostEstimate { LedgerPricing.total(tasks) }
     var lastActivity: Date { tasks.map(\.lastActivity).max() ?? .distantPast }
     var responses: Int { tasks.reduce(0) { $0 + $1.responses } }
     var models: [String] { Array(Set(tasks.flatMap(\.models))).sorted() }
@@ -68,6 +69,7 @@ struct ProjectUsage: Identifiable {
     var name: String { identity.name }
     var path: String { identity.path }
     var usage: TokenUsage { tasks.reduce(TokenUsage()) { $0 + $1.usage } }
+    var cost: CostEstimate { LedgerPricing.total(tasks) }
     var lastActivity: Date { tasks.map(\.lastActivity).max() ?? .distantPast }
     var models: [String] { Array(Set(tasks.flatMap(\.models))).sorted() }
     var categoryTotals: [(WorkCategory, Int64, Int)] { LedgerAnalytics.categories(tasks) }
@@ -151,6 +153,7 @@ enum LedgerAnalytics {
         for entry in tasks.flatMap(\.modelUsage) {
             var total = totals[entry.model] ?? ModelUsage(model: entry.model)
             total.usage = total.usage + entry.usage; total.responses += entry.responses; total.taskIDs.formUnion(entry.taskIDs)
+            total.cost = total.cost + entry.cost
             totals[entry.model] = total
         }
         return totals.values.sorted { $0.usage.total == $1.usage.total ? $0.model < $1.model : $0.usage.total > $1.usage.total }
@@ -159,21 +162,24 @@ enum LedgerAnalytics {
 
 extension LedgerCSV {
     static func renderProjects(_ projects: [ProjectUsage], translate: (String) -> String = { $0 }) -> String {
-        let header = ["项目", "项目路径", "对话数", "任务轮次", "输入tokens", "缓存输入tokens", "输出tokens", "推理输出tokens", "总tokens", "模型", "最近活动"]
-        let rows = projects.map { project in
-            [project.name == ProjectIdentity.unknown.name ? translate(project.name) : project.name, project.path, String(project.conversations.count), String(project.tasks.count), String(project.usage.input), String(project.usage.cached), String(project.usage.output), String(project.usage.reasoning), String(project.usage.total), project.models.map(translate).joined(separator: "; "), project.lastActivity.formatted(.iso8601)].map(field).joined(separator: ",")
+        let header = ["项目", "项目路径", "对话数", "任务轮次", "输入tokens", "缓存输入tokens", "输出tokens", "推理输出tokens", "总tokens", "模型", "最近活动"] + LedgerPricing.csvHeaders
+        let rows = projects.map { project -> String in
+            let usage = project.usage
+            let name = project.name == ProjectIdentity.unknown.name ? translate(project.name) : project.name
+            let values: [String] = [name, project.path, String(project.conversations.count), String(project.tasks.count), String(usage.input), String(usage.cached), String(usage.output), String(usage.reasoning), String(usage.total), project.models.map(translate).joined(separator: "; "), project.lastActivity.formatted(.iso8601)]
+            return (values + LedgerPricing.csvValues(project.cost)).map(field).joined(separator: ",")
         }
         return "\u{feff}" + ([header.map(translate).joined(separator: ",")] + rows).joined(separator: "\r\n")
     }
     static func renderConversations(_ conversations: [ConversationUsage], projectPath: String? = nil, translate: (String) -> String = { $0 }) -> String {
-        let header = ["对话", "聊天ID", "项目路径", "统计范围", "任务轮次", "调用次数", "输入tokens", "缓存输入tokens", "输出tokens", "推理输出tokens", "总tokens", "模型", "涉及多个项目", "最近活动"]
+        let header = ["对话", "聊天ID", "项目路径", "统计范围", "任务轮次", "调用次数", "输入tokens", "缓存输入tokens", "输出tokens", "推理输出tokens", "总tokens", "模型", "涉及多个项目", "最近活动"] + LedgerPricing.csvHeaders
         let rows = conversations.map { chat -> String in
             let paths = projectPath ?? Array(Set(chat.tasks.map(\.projectPath))).sorted().joined(separator: "; ")
             let usage = chat.usage
             let models = chat.models.map(translate).joined(separator: "; ")
             let scope = translate(projectPath == nil ? "整个对话" : "仅当前项目")
             let values: [String] = [chat.title, chat.id, paths, scope, String(chat.tasks.count), String(chat.responses), String(usage.input), String(usage.cached), String(usage.output), String(usage.reasoning), String(usage.total), models, translate(chat.spansProjects ? "是" : "否"), chat.lastActivity.formatted(.iso8601)]
-            return values.map(field).joined(separator: ",")
+            return (values + LedgerPricing.csvValues(chat.cost)).map(field).joined(separator: ",")
         }
         return "\u{feff}" + ([header.map(translate).joined(separator: ",")] + rows).joined(separator: "\r\n")
     }

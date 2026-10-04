@@ -125,6 +125,7 @@ struct TaskCard: View {
                     Spacer(minLength: 10)
                     VStack(alignment: .trailing, spacing: 5) {
                         Text(compactTokens(task.usage.total)).font(.system(size: 16, weight: .semibold, design: .rounded)).monospacedDigit()
+                        Text(LedgerPricing.display(task.cost)).font(.system(size: 10)).foregroundStyle(.secondary).monospacedDigit().help(L("预估 API 花费") + " · USD")
                         Text(L("\(task.responses) 次响应")).font(.system(size: 10)).foregroundStyle(.secondary)
                     }
                     Image(systemName: expanded ? "chevron.up" : "chevron.down").font(.system(size: 10)).foregroundStyle(.secondary).padding(.top, 10)
@@ -141,7 +142,7 @@ struct TaskCard: View {
                     Button(L("打开聊天")) { store.openChat(task) }
                 }
                 Text(L(task.reason)).font(.system(size: 11)).foregroundStyle(.secondary)
-                UsageMetrics(usage: task.usage)
+                UsageMetrics(usage: task.usage, cost: task.cost)
                 Text(task.projectPath.isEmpty ? L("未识别项目") : task.projectPath).font(.system(size: 10, design: .monospaced)).foregroundStyle(.secondary).textSelection(.enabled)
                 Text(L("模型：\(task.models.map(L).joined(separator: ", "))\(task.subagentResponses > 0 ? " · 含 \(task.subagentResponses) 次子代理响应" : "")"))
                     .font(.system(size: 10)).foregroundStyle(.secondary).textSelection(.enabled)
@@ -310,7 +311,15 @@ final class UsagePanel: NSPanel {
         let range = scope.interval(now: Date(), calendar: .current)
         let snap = scanner.snapshot(logs: result.logs, start: range.start, end: range.end, root: root, warnings: result.warnings)
         let enriched = LedgerAnalytics.enrich(snap, resolver: ProjectResolver(), titles: ConversationMetadata.titles(root: URL(fileURLWithPath: root)))
-        let output: [String: Any] = ["files": snap.files, "tasks": snap.tasks.count, "projects": enriched.projects.count, "conversations": enriched.conversations.count, "projectTotal": enriched.projects.reduce(Int64(0)) { $0 + $1.usage.total }, "conversationTotal": enriched.conversations.reduce(Int64(0)) { $0 + $1.usage.total }, "input": snap.usage.input, "cached": snap.usage.cached, "output": snap.usage.output, "reasoning": snap.usage.reasoning, "total": snap.usage.total, "categories": Dictionary(WorkCategory.allCases.map { c in (c.rawValue, snap.tasks.filter { $0.category == c }.reduce(Int64(0)) { $0 + $1.usage.total }) }, uniquingKeysWith: { a, _ in a }), "warnings": snap.warnings, "malformed": snap.malformed, "seconds": Date().timeIntervalSince(start)]
+        var output: [String: Any] = ["files": snap.files, "tasks": snap.tasks.count, "projects": enriched.projects.count, "conversations": enriched.conversations.count, "projectTotal": enriched.projects.reduce(Int64(0)) { $0 + $1.usage.total }, "conversationTotal": enriched.conversations.reduce(Int64(0)) { $0 + $1.usage.total }, "input": snap.usage.input, "cached": snap.usage.cached, "output": snap.usage.output, "reasoning": snap.usage.reasoning, "total": snap.usage.total, "categories": Dictionary(WorkCategory.allCases.map { c in (c.rawValue, snap.tasks.filter { $0.category == c }.reduce(Int64(0)) { $0 + $1.usage.total }) }, uniquingKeysWith: { a, _ in a }), "warnings": snap.warnings, "malformed": snap.malformed, "seconds": Date().timeIntervalSince(start)]
+        output["estimatedAPIUSD"] = LedgerPricing.decimalString(snap.cost.totalUSD)
+        output["pricedTokens"] = snap.cost.pricedTokens
+        output["unpricedTokens"] = snap.cost.unpricedTokens
+        output["unverifiedContextTokens"] = snap.cost.unverifiedContextTokens
+        output["projectEstimatedAPIUSD"] = LedgerPricing.decimalString(enriched.projects.reduce(CostEstimate()) { $0 + $1.cost }.totalUSD)
+        output["conversationEstimatedAPIUSD"] = LedgerPricing.decimalString(enriched.conversations.reduce(CostEstimate()) { $0 + $1.cost }.totalUSD)
+        output["modelEstimatedAPIUSD"] = LedgerPricing.decimalString(snap.modelUsage.reduce(CostEstimate()) { $0 + $1.cost }.totalUSD)
+        output["pricingDate"] = LedgerPricing.verifiedDate
         if let data = try? JSONSerialization.data(withJSONObject: output, options: [.prettyPrinted, .sortedKeys]), let text = String(data: data, encoding: .utf8) { print(text) }
     }
 }
