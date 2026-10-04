@@ -20,6 +20,9 @@ import Vision
         precondition(value.monthlyUsage == value.usage && value.monthlyCost == value.cost, "Same monthly scope must reconcile")
         store.navigate(.tasks); store.scope = .today
         precondition(value.range == L(DateScope.month.rawValue), "Frozen range survives navigation")
+        print("Generating install QR"); fflush(stdout)
+        precondition(ShareImages.qr() != nil, "Install QR must be generated")
+        print("Install QR generated; rendering card"); fflush(stdout)
         for language in ["en", "zh"] {
             LedgerText.language = language
             for dark in [false, true] {

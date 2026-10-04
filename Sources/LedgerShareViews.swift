@@ -24,8 +24,18 @@ import UniformTypeIdentifiers
         let visibleTitle = publicTitle.isEmpty ? (showName ? value.privateTitle : (language == "en" ? LedgerText.english[value.kind] ?? value.kind : value.kind)) : publicTitle
         let view = ShareCardView(value: value, title: visibleTitle, language: language)
             .environment(\.colorScheme, dark ? .dark : .light).frame(width: 360, height: 480)
-        let renderer = ImageRenderer(content: view); renderer.scale = 3
-        return renderer.nsImage
+        let renderer = ImageRenderer(content: view)
+        var result: NSImage?
+        // An explicit bitmap context avoids a Metal-backed offscreen target.
+        renderer.render(rasterizationScale: 3) { size, draw in
+            guard let context = CGContext(data: nil, width: Int(size.width * 3), height: Int(size.height * 3),
+                                          bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
+                                          bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return }
+            context.scaleBy(x: 3, y: 3)
+            draw(context)
+            if let image = context.makeImage() { result = NSImage(cgImage: image, size: size) }
+        }
+        return result
     }
     static func png(_ image: NSImage) -> Data? {
         guard let data = image.tiffRepresentation, let rep = NSBitmapImageRep(data: data) else { return nil }
