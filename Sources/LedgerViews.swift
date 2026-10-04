@@ -82,8 +82,7 @@ struct StatusPopover: View {
                 Spacer(minLength: 0)
                 Picker(L("时间"), selection: $store.scope) { ForEach(DateScope.allCases) { Text(L($0.rawValue)).tag($0) } }
                     .pickerStyle(.menu).labelsHidden().controlSize(.small).frame(width: 108)
-                Button { store.exportCSV(models: false) } label: { Image(systemName: "square.and.arrow.up") }
-                    .buttonStyle(.plain).disabled(store.busy || !store.rangeReady || store.dataUnavailable).help(L("导出 CSV"))
+                LedgerShareMenu(store: store, overview: true)
             }.padding(.horizontal, 12).padding(.top, 12).padding(.bottom, 8)
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 10) {
@@ -276,7 +275,7 @@ struct DashboardView: View {
                     if !store.showSettings {
                         Picker(L("时间"), selection: $store.scope) { ForEach(DateScope.allCases) { Text(L($0.rawValue)).tag($0) } }.pickerStyle(.menu).labelsHidden().frame(width: 135)
                         if store.page == .goals { Button { store.newGoal() } label: { Label(L("新建目标"), systemImage: "plus") } }
-                        Button { store.exportCSV() } label: { Image(systemName: "square.and.arrow.up") }.help(L("导出 CSV")).disabled(store.busy || !store.rangeReady || store.dataUnavailable)
+                        LedgerShareMenu(store: store, overview: false)
                     }
                     Button { store.refresh() } label: { Image(systemName: "arrow.clockwise") }.help(L("刷新")).disabled(store.busy).keyboardShortcut("r", modifiers: .command)
                 }

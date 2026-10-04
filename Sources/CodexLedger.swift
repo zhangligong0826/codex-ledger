@@ -181,6 +181,7 @@ final class UsagePanel: NSPanel {
     var localMonitor: Any?
     var globalMonitor: Any?
     var dashboard: NSWindow?
+    var shareWindow: NSWindow?
     var showPopoverOnLoad = CommandLine.arguments.contains("--show-popover")
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -206,6 +207,12 @@ final class UsagePanel: NSPanel {
         }
         globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in self?.usagePanel?.orderOut(nil) }
         store.didUpdate = { [weak self] in self?.updateStatus() }
+        store.presentShare = { [weak self] value in self?.openShare(value) }
+        store.captureInterface = { [weak self] overview in
+            guard let self, let content = (overview ? self.usagePanel : self.dashboard)?.contentView,
+                  let image = ShareImages.capture(content) else { return }
+            self.openShare(SharePreview(snapshot: nil, screenshot: image))
+        }
         store.prepareFilePanel = { [weak self] in self?.openDashboard(); return self?.dashboard }
         updateStatus(); store.start()
         if CommandLine.arguments.contains("--show-dashboard") || LedgerPreferences.isDemo { openDashboard() }
@@ -265,6 +272,14 @@ final class UsagePanel: NSPanel {
     @objc func openDashboardAction() { openDashboard() }
     @objc func settingsAction() { store.navigate(.settings); openDashboard() }
     @objc func quitAction() { NSApp.terminate(nil) }
+    func openShare(_ preview: SharePreview) {
+        usagePanel?.orderOut(nil)
+        shareWindow?.close()
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 430, height: 610), styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        window.title = L("分享"); window.isReleasedWhenClosed = false
+        window.contentViewController = NSHostingController(rootView: SharePreviewView(preview: preview, language: store.language, close: { [weak window] in window?.close() }))
+        shareWindow = window; window.center(); NSApp.activate(ignoringOtherApps: true); window.makeKeyAndOrderFront(nil)
+    }
     func openDashboard() {
         usagePanel?.orderOut(nil)
         if dashboard == nil {

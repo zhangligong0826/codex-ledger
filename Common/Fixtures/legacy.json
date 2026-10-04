@@ -1,0 +1,211 @@
+{
+  "version": 1,
+  "now": "2026-10-04T12:00:00Z",
+  "timezone": "UTC",
+  "logs": [
+    [
+      {
+        "type": "session_meta",
+        "payload": {
+          "id": "legacy",
+          "source": "vscode"
+        },
+        "timestamp": "2026-10-04T00:01:00Z"
+      },
+      {
+        "type": "event_msg",
+        "payload": {
+          "type": "task_started",
+          "turn_id": "legacy-turn"
+        },
+        "timestamp": "2026-10-04T00:01:00Z"
+      },
+      {
+        "type": "turn_context",
+        "payload": {
+          "turn_id": "legacy-turn",
+          "model": "gpt-5.4"
+        },
+        "timestamp": "2026-10-04T00:01:00Z"
+      },
+      {
+        "type": "event_msg",
+        "payload": {
+          "type": "token_count",
+          "info": {
+            "total_token_usage": {
+              "input_tokens": 100,
+              "output_tokens": 10,
+              "cached_input_tokens": 0,
+              "reasoning_output_tokens": 0
+            }
+          }
+        },
+        "timestamp": "2026-10-03T23:59:00Z"
+      },
+      {
+        "type": "event_msg",
+        "payload": {
+          "type": "token_count",
+          "info": {
+            "total_token_usage": {
+              "input_tokens": 200,
+              "output_tokens": 20,
+              "cached_input_tokens": 0,
+              "reasoning_output_tokens": 0
+            }
+          }
+        },
+        "timestamp": "2026-10-04T00:01:00Z"
+      },
+      {
+        "type": "event_msg",
+        "payload": {
+          "type": "token_count",
+          "info": {
+            "total_token_usage": {
+              "input_tokens": 200,
+              "output_tokens": 20,
+              "cached_input_tokens": 0,
+              "reasoning_output_tokens": 0
+            }
+          }
+        },
+        "timestamp": "2026-10-04T00:02:00Z"
+      },
+      {
+        "type": "event_msg",
+        "payload": {
+          "type": "token_count",
+          "info": {
+            "total_token_usage": {
+              "input_tokens": 50,
+              "output_tokens": 5,
+              "cached_input_tokens": 0,
+              "reasoning_output_tokens": 0
+            }
+          }
+        },
+        "timestamp": "2026-10-04T00:03:00Z"
+      }
+    ],
+    [
+      {
+        "type": "session_meta",
+        "payload": {
+          "id": "legacy",
+          "source": "vscode"
+        },
+        "timestamp": "2026-10-04T00:01:00Z"
+      },
+      {
+        "type": "event_msg",
+        "payload": {
+          "type": "task_started",
+          "turn_id": "legacy-turn"
+        },
+        "timestamp": "2026-10-04T00:01:00Z"
+      },
+      {
+        "type": "turn_context",
+        "payload": {
+          "turn_id": "legacy-turn",
+          "model": "gpt-5.4"
+        },
+        "timestamp": "2026-10-04T00:01:00Z"
+      },
+      {
+        "type": "event_msg",
+        "payload": {
+          "type": "token_count",
+          "info": {
+            "total_token_usage": {
+              "input_tokens": 100,
+              "output_tokens": 10,
+              "cached_input_tokens": 0,
+              "reasoning_output_tokens": 0
+            }
+          }
+        },
+        "timestamp": "2026-10-03T23:59:00Z"
+      },
+      {
+        "type": "event_msg",
+        "payload": {
+          "type": "token_count",
+          "info": {
+            "total_token_usage": {
+              "input_tokens": 200,
+              "output_tokens": 20,
+              "cached_input_tokens": 0,
+              "reasoning_output_tokens": 0
+            }
+          }
+        },
+        "timestamp": "2026-10-04T00:01:00Z"
+      },
+      {
+        "type": "event_msg",
+        "payload": {
+          "type": "token_count",
+          "info": {
+            "total_token_usage": {
+              "input_tokens": 200,
+              "output_tokens": 20,
+              "cached_input_tokens": 0,
+              "reasoning_output_tokens": 0
+            }
+          }
+        },
+        "timestamp": "2026-10-04T00:02:00Z"
+      },
+      {
+        "type": "event_msg",
+        "payload": {
+          "type": "token_count",
+          "info": {
+            "total_token_usage": {
+              "input_tokens": 50,
+              "output_tokens": 5,
+              "cached_input_tokens": 0,
+              "reasoning_output_tokens": 0
+            }
+          }
+        },
+        "timestamp": "2026-10-04T00:03:00Z"
+      }
+    ]
+  ],
+  "expected": {
+    "today": {
+      "total": 165,
+      "cached": 0,
+      "reasoning": 0,
+      "turns": 1,
+      "responses": 2,
+      "priced": 165,
+      "unpriced": 0,
+      "usd": "0.0006"
+    },
+    "yesterday": {
+      "total": 110,
+      "cached": 0,
+      "reasoning": 0,
+      "turns": 1,
+      "responses": 1,
+      "priced": 110,
+      "unpriced": 0,
+      "usd": "0.0004"
+    },
+    "all": {
+      "total": 275,
+      "cached": 0,
+      "reasoning": 0,
+      "turns": 1,
+      "responses": 3,
+      "priced": 275,
+      "unpriced": 0,
+      "usd": "0.001"
+    }
+  }
+}

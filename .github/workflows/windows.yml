@@ -1,0 +1,67 @@
+name: Windows
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Accounting and shared fixtures
+        run: dotnet run --project Windows/Ledger.Tests -c Release
+      - name: UI renders and behavior checks with synthetic data
+        shell: pwsh
+        run: |
+          dotnet build Windows/Ledger.App -c Release
+          $p = Start-Process -FilePath Windows/Ledger.App/bin/Release/net10.0-windows/CodexLedger.exe -ArgumentList '--ui-smoke', "--output=$env:RUNNER_TEMP/ui-previews" -Wait -PassThru -RedirectStandardOutput "$env:RUNNER_TEMP/ui-checks.txt" -RedirectStandardError "$env:RUNNER_TEMP/ui-errors.txt"
+          Get-Content "$env:RUNNER_TEMP/ui-checks.txt"
+          Get-Content "$env:RUNNER_TEMP/ui-errors.txt"
+          if ($p.ExitCode -ne 0) { throw 'Windows UI smoke failed' }
+      - name: Package both architectures
+        shell: pwsh
+        run: ./Windows/package.ps1
+      - name: User install, upgrade, diagnostic and uninstall
+        shell: pwsh
+        run: |
+          $dir = "$env:RUNNER_TEMP/ledger-installed"
+          $installer = 'dist/Codex-Ledger-1.2.0-beta.1-Windows-win-x64-Setup.exe'
+          1..2 | ForEach-Object {
+            $p = Start-Process $installer -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=$dir" -Wait -PassThru
+            if ($p.ExitCode -ne 0) { throw 'Installer/upgrade failed' }
+          }
+          New-Item -ItemType Directory -Force "$env:RUNNER_TEMP/empty-codex/sessions" | Out-Null
+          $env:CODEX_LEDGER_SOURCE = "$env:RUNNER_TEMP/empty-codex"
+          $p = Start-Process "$dir/CodexLedger.exe" -ArgumentList '--diagnose', '--scope=all' -Wait -PassThru -RedirectStandardOutput "$env:RUNNER_TEMP/diagnostic.json"
+          if ($p.ExitCode -ne 0) { throw 'Installed diagnostic failed' }
+          $data = Get-Content "$env:RUNNER_TEMP/diagnostic.json" -Raw | ConvertFrom-Json
+          if ($data.total -ne 0 -or $data.dailyUsage.Count -ne 30) { throw 'Empty-source diagnostic failed' }
+          $p = Start-Process "$dir/unins000.exe" -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -Wait -PassThru
+          if ($p.ExitCode -ne 0 -or (Test-Path "$dir/CodexLedger.exe")) { throw 'Uninstall failed' }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-validation
+          path: |
+            ${{ runner.temp }}/ui-previews/
+            ${{ runner.temp }}/ui-checks.txt
+            ${{ runner.temp }}/ui-errors.txt
+            ${{ runner.temp }}/diagnostic.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-packages
+          path: |
+            dist/*Setup.exe
+            dist/*Portable.zip
+            dist/WINDOWS-CHECKSUMS.txt

@@ -33,38 +33,25 @@ struct ModelPrice {
 }
 
 enum LedgerPricing {
-    static let verifiedDate = "2026-10-04"
-    static let sourceURL = URL(string: "https://developers.openai.com/api/docs/pricing")!
-    static let longContextThreshold: Int64 = 272_000
-    // Official Standard USD prices per million tokens, verified on the date above.
-    // Exact names only. Internal models and undocumented aliases stay unpriced.
-    static let prices: [String: ModelPrice] = [
-        "gpt-6-astra": ModelPrice("10", "1", "50", longContext: true),
-        "gpt-6.1-sol": ModelPrice("2", "0.1", "10", longContext: true),
-        "gpt-6-sol": ModelPrice("2", "0.2", "10", longContext: true),
-        "gpt-6-luna": ModelPrice("0.1", "0.01", "0.5", longContext: true),
-        "gpt-5.6-sol": ModelPrice("4", "0.4", "20", longContext: true),
-        "gpt-5.6-terra": ModelPrice("2", "0.2", "12", longContext: true),
-        "gpt-5.6-luna": ModelPrice("0.2", "0.02", "1.2", longContext: true),
-        "gpt-5.5": ModelPrice("5", "0.5", "30", longContext: true),
-        "gpt-5.5-2026-04-23": ModelPrice("5", "0.5", "30", longContext: true),
-        "gpt-5.4": ModelPrice("2.5", "0.25", "15", longContext: true),
-        "gpt-5.4-mini": ModelPrice("0.75", "0.075", "4.5"),
-        "gpt-5.4-nano": ModelPrice("0.2", "0.02", "1.25"),
-        "gpt-5.3-codex": ModelPrice("1.75", "0.175", "14"),
-        "gpt-5.2": ModelPrice("1.75", "0.175", "14"),
-        "gpt-5.1": ModelPrice("1.25", "0.125", "10"),
-        "gpt-5": ModelPrice("1.25", "0.125", "10"),
-        "gpt-5-mini": ModelPrice("0.25", "0.025", "2"),
-        "gpt-5-nano": ModelPrice("0.05", "0.005", "0.4"),
-        "gpt-4.1": ModelPrice("2", "0.5", "8"),
-        "gpt-4.1-mini": ModelPrice("0.4", "0.1", "1.6"),
-        "gpt-4.1-nano": ModelPrice("0.1", "0.025", "0.4"),
-        "gpt-4o": ModelPrice("2.5", "1.25", "10"),
-        "gpt-4o-mini": ModelPrice("0.15", "0.075", "0.6"),
-        "o3": ModelPrice("2", "0.5", "8"),
-        "o4-mini": ModelPrice("1.1", "0.275", "4.4")
-    ]
+    private struct Catalog: Decodable {
+        struct Rate: Decodable { let input: String; let cached: String; let output: String; let longContext: Bool }
+        let version: Int; let verifiedDate: String; let sourceURL: String; let longContextThreshold: Int64
+        let models: [String: Rate]
+    }
+    private static let catalog: Catalog? = {
+        let candidates = [Bundle.main.url(forResource: "prices", withExtension: "json"),
+                          URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Common/prices.json")]
+        for url in candidates.compactMap({ $0 }) {
+            if let data = try? Data(contentsOf: url), let value = try? JSONDecoder().decode(Catalog.self, from: data), value.version == 1 { return value }
+        }
+        return nil
+    }()
+    static var verifiedDate: String { catalog?.verifiedDate ?? "Unknown" }
+    static var sourceURL: URL { URL(string: catalog?.sourceURL ?? "https://developers.openai.com/api/docs/pricing")! }
+    static var longContextThreshold: Int64 { catalog?.longContextThreshold ?? 272_000 }
+    static let prices: [String: ModelPrice] = (catalog?.models ?? [:]).mapValues {
+        ModelPrice($0.input, $0.cached, $0.output, longContext: $0.longContext)
+    }
     static func estimate(model: String, usage: TokenUsage, hasRequestUsage: Bool = true) -> CostEstimate {
         guard let price = prices[model] else { return CostEstimate(unpricedTokens: usage.total) }
         let isLong = hasRequestUsage && price.longContext && usage.input > longContextThreshold

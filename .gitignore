@@ -5,3 +5,7 @@ dist/
 *.dmg
 .DS_Store
 *.log
+
+**/bin/
+**/obj/
+TestResults/

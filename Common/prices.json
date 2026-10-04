@@ -1,0 +1,158 @@
+{
+  "version": 1,
+  "verifiedDate": "2026-10-04",
+  "sourceURL": "https://developers.openai.com/api/docs/pricing",
+  "longContextThreshold": 272000,
+  "models": {
+    "gpt-6-astra": {
+      "input": "10",
+      "cached": "1",
+      "output": "50",
+      "longContext": true
+    },
+    "gpt-6.1-sol": {
+      "input": "2",
+      "cached": "0.1",
+      "output": "10",
+      "longContext": true
+    },
+    "gpt-6-sol": {
+      "input": "2",
+      "cached": "0.2",
+      "output": "10",
+      "longContext": true
+    },
+    "gpt-6-luna": {
+      "input": "0.1",
+      "cached": "0.01",
+      "output": "0.5",
+      "longContext": true
+    },
+    "gpt-5.6-sol": {
+      "input": "4",
+      "cached": "0.4",
+      "output": "20",
+      "longContext": true
+    },
+    "gpt-5.6-terra": {
+      "input": "2",
+      "cached": "0.2",
+      "output": "12",
+      "longContext": true
+    },
+    "gpt-5.6-luna": {
+      "input": "0.2",
+      "cached": "0.02",
+      "output": "1.2",
+      "longContext": true
+    },
+    "gpt-5.5": {
+      "input": "5",
+      "cached": "0.5",
+      "output": "30",
+      "longContext": true
+    },
+    "gpt-5.5-2026-04-23": {
+      "input": "5",
+      "cached": "0.5",
+      "output": "30",
+      "longContext": true
+    },
+    "gpt-5.4": {
+      "input": "2.5",
+      "cached": "0.25",
+      "output": "15",
+      "longContext": true
+    },
+    "gpt-5.4-mini": {
+      "input": "0.75",
+      "cached": "0.075",
+      "output": "4.5",
+      "longContext": false
+    },
+    "gpt-5.4-nano": {
+      "input": "0.2",
+      "cached": "0.02",
+      "output": "1.25",
+      "longContext": false
+    },
+    "gpt-5.3-codex": {
+      "input": "1.75",
+      "cached": "0.175",
+      "output": "14",
+      "longContext": false
+    },
+    "gpt-5.2": {
+      "input": "1.75",
+      "cached": "0.175",
+      "output": "14",
+      "longContext": false
+    },
+    "gpt-5.1": {
+      "input": "1.25",
+      "cached": "0.125",
+      "output": "10",
+      "longContext": false
+    },
+    "gpt-5": {
+      "input": "1.25",
+      "cached": "0.125",
+      "output": "10",
+      "longContext": false
+    },
+    "gpt-5-mini": {
+      "input": "0.25",
+      "cached": "0.025",
+      "output": "2",
+      "longContext": false
+    },
+    "gpt-5-nano": {
+      "input": "0.05",
+      "cached": "0.005",
+      "output": "0.4",
+      "longContext": false
+    },
+    "gpt-4.1": {
+      "input": "2",
+      "cached": "0.5",
+      "output": "8",
+      "longContext": false
+    },
+    "gpt-4.1-mini": {
+      "input": "0.4",
+      "cached": "0.1",
+      "output": "1.6",
+      "longContext": false
+    },
+    "gpt-4.1-nano": {
+      "input": "0.1",
+      "cached": "0.025",
+      "output": "0.4",
+      "longContext": false
+    },
+    "gpt-4o": {
+      "input": "2.5",
+      "cached": "1.25",
+      "output": "10",
+      "longContext": false
+    },
+    "gpt-4o-mini": {
+      "input": "0.15",
+      "cached": "0.075",
+      "output": "0.6",
+      "longContext": false
+    },
+    "o3": {
+      "input": "2",
+      "cached": "0.5",
+      "output": "8",
+      "longContext": false
+    },
+    "o4-mini": {
+      "input": "1.1",
+      "cached": "0.275",
+      "output": "4.4",
+      "longContext": false
+    }
+  }
+}

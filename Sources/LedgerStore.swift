@@ -10,6 +10,12 @@ enum LedgerPreferences {
     static let defaults: UserDefaults = isDemo ? UserDefaults(suiteName: "local.codexledger.demo")! : .standard
 }
 
+struct SharePreview: Identifiable {
+    let id = UUID()
+    let snapshot: ShareSnapshot?
+    let screenshot: NSImage?
+}
+
 @MainActor final class LedgerStore: ObservableObject {
     @Published var today = LedgerSnapshot()
     @Published var todayIsReady = false
@@ -47,6 +53,9 @@ enum LedgerPreferences {
     @Published var launchAtLogin = false
     @Published var lastScanSeconds: Double = 0
     var didUpdate: (() -> Void)?
+    @Published var isSharing = false
+    var presentShare: ((SharePreview) -> Void)?
+    var captureInterface: ((Bool) -> Void)?
     var prepareFilePanel: (() -> NSWindow?)?
     private var logs: [ParsedLog] = []
     private var loadedDays = 0
@@ -218,6 +227,54 @@ enum LedgerPreferences {
     }
     func openChat(_ task: LedgerTask) { openChat(id: task.sessionID) }
     func openChat(id: String) { if let url = URL(string: "codex://threads/\(id)") { NSWorkspace.shared.open(url) } }
+    func makeShareCard(overview: Bool = false) {
+        guard rangeReady, activityReady, !busy, !isSharing, !dataUnavailable else { return }
+        let now = Date(), calendar = scanner.calendar
+        let sourceLogs = logs, goalBook = self.goalBook, path = sourcePath
+        let goalID = overview ? nil : selectedGoalID, projectID = overview ? nil : selectedProjectID
+        let chatID = overview ? nil : selectedConversationID
+        let goalList = !overview && page == .goals && goalID == nil
+        let category = overview ? nil : categoryFilter, model = overview ? nil : modelFilter
+        let query = overview ? "" : search
+        let unassigned = !overview && unassignedOnly
+        let selected = overview ? snapshot.tasks : filteredTasks
+        let chosenGoal = goalID.flatMap { id in goals.first { $0.id == id } }
+        let kind = chatID != nil ? "对话用量" : goalID != nil ? "目标花费" : projectID != nil ? "项目用量" : goalList ? "目标账本" : "用量总览"
+        let title = chatID != nil ? conversation?.title ?? L(kind) : chosenGoal?.goal.name ?? project?.name ?? L(kind)
+        let range = L(scope.rawValue), priceDate = LedgerPricing.verifiedDate, warning = !snapshot.warnings.isEmpty
+        let demoMonth = LedgerPreferences.isDemo ? LedgerDemo.snapshot(scope: .month).tasks : nil
+        let scanner = self.scanner, resolver = self.resolver
+        isSharing = true
+        queue.async {
+            let monthRange = DateScope.month.interval(now: now, calendar: calendar)
+            let monthTasks = demoMonth ?? LedgerAnalytics.enrich(scanner.snapshot(logs: sourceLogs, start: monthRange.start, end: monthRange.end, root: path), resolver: resolver, titles: [:]).tasks
+            let matching = monthTasks.filter { task in
+                if let goalID, goalBook.owner(task) != goalID { return false }
+                if goalList && goalBook.owner(task) == nil { return false }
+                if unassigned && goalBook.owner(task) != nil { return false }
+                if let projectID, task.projectID != projectID { return false }
+                if let chatID, task.sessionID != chatID { return false }
+                if let category, task.category != category { return false }
+                if let model, !task.models.contains(model) { return false }
+                return query.isEmpty || [task.title, task.projectName, task.projectPath, task.workingDirectory, task.sessionID, task.models.joined(separator: " ")].contains { $0.localizedCaseInsensitiveContains(query) }
+            }
+            let days: [DailyUsage]
+            if demoMonth != nil {
+                days = (0..<30).map { offset in
+                    let date = calendar.date(byAdding: .day, value: offset, to: monthRange.start)!
+                    let tasks = matching.filter { calendar.isDate($0.date, inSameDayAs: date) }
+                    return DailyUsage(date: date, usage: tasks.reduce(TokenUsage()) { $0 + $1.usage }, responses: tasks.reduce(0) { $0 + $1.responses }, cost: LedgerPricing.total(tasks))
+                }
+            } else { days = scanner.dailyUsage(logs: sourceLogs, now: now, calendar: calendar, taskIDs: Set(matching.map(\.id))) }
+            let value = ShareSnapshot(kind: kind, privateTitle: title, range: range, timezone: calendar.timeZone.identifier,
+                usage: selected.reduce(TokenUsage()) { $0 + $1.usage }, cost: LedgerPricing.total(selected), turns: selected.count,
+                conversations: Set(selected.map(\.sessionID)).count, models: Set(selected.flatMap(\.models)).subtracting(["未知模型"]).count,
+                days: days, completionCost: chatID == nil ? chosenGoal?.goal.completionCost : nil,
+                completionDate: chosenGoal?.goal.completedAt, completionPriceDate: chosenGoal?.goal.completionPriceDate,
+                filtered: category != nil || model != nil || !query.isEmpty || unassigned, warning: warning, priceDate: priceDate)
+            DispatchQueue.main.async { self.isSharing = false; self.presentShare?(SharePreview(snapshot: value, screenshot: nil)) }
+        }
+    }
     func exportCSV(models modelMode: Bool? = nil, turns: Bool = false) {
         guard rangeReady, !busy, !dataUnavailable else { return }
         let contents: String, kind: String

@@ -1,0 +1,395 @@
+{
+  "version": 1,
+  "now": "2026-10-04T12:00:00Z",
+  "timezone": "UTC",
+  "logs": [
+    [
+      {
+        "type": "session_meta",
+        "payload": {
+          "id": "chat-a",
+          "cwd": "/tmp/ledger-fixture/project-a",
+          "source": "vscode"
+        },
+        "timestamp": "2026-10-04T00:01:00Z"
+      },
+      {
+        "type": "event_msg",
+        "payload": {
+          "type": "task_started",
+          "turn_id": "turn-a"
+        },
+        "timestamp": "2026-10-04T00:01:00Z"
+      },
+      {
+        "type": "turn_context",
+        "payload": {
+          "turn_id": "turn-a",
+          "model": "gpt-5.4"
+        },
+        "timestamp": "2026-10-04T00:01:00Z"
+      },
+      {
+        "type": "event_msg",
+        "payload": {
+          "type": "user_message",
+          "message": "帮我制作一个 PPT"
+        },
+        "timestamp": "2026-10-04T00:01:00Z"
+      },
+      {
+        "type": "token_usage_record",
+        "payload": {
+          "response_id": "r1",
+          "thread_id": "chat-a",
+          "turn_id": "turn-a",
+          "root_turn_id": "turn-a",
+          "model": "gpt-5.4",
+          "usage": {
+            "input_tokens": 100,
+            "output_tokens": 10,
+            "cached_input_tokens": 50,
+            "reasoning_output_tokens": 0
+          }
+        },
+        "timestamp": "2026-10-03T23:59:00Z"
+      },
+      {
+        "type": "token_usage_record",
+        "payload": {
+          "response_id": "r2",
+          "thread_id": "chat-a",
+          "turn_id": "turn-a",
+          "root_turn_id": "turn-a",
+          "model": "gpt-5.4",
+          "usage": {
+            "input_tokens": 200,
+            "output_tokens": 20,
+            "cached_input_tokens": 100,
+            "reasoning_output_tokens": 0
+          }
+        },
+        "timestamp": "2026-10-04T00:01:00Z"
+      },
+      {
+        "type": "token_usage_record",
+        "payload": {
+          "response_id": "r2",
+          "thread_id": "chat-a",
+          "turn_id": "turn-a",
+          "root_turn_id": "turn-a",
+          "model": "gpt-5.4",
+          "usage": {
+            "input_tokens": 200,
+            "output_tokens": 20,
+            "cached_input_tokens": 100,
+            "reasoning_output_tokens": 0
+          }
+        },
+        "timestamp": "2026-10-04T00:01:00Z"
+      },
+      {
+        "type": "token_usage_record",
+        "payload": {
+          "response_id": "inherited",
+          "thread_id": "parent",
+          "turn_id": "turn-a",
+          "root_turn_id": "turn-a",
+          "model": "gpt-5.4",
+          "usage": {
+            "input_tokens": 9000,
+            "output_tokens": 900,
+            "cached_input_tokens": 0,
+            "reasoning_output_tokens": 0
+          }
+        },
+        "timestamp": "2026-10-04T00:02:00Z"
+      },
+      {
+        "type": "event_msg",
+        "payload": {
+          "type": "token_count",
+          "info": {
+            "total_token_usage": {
+              "input_tokens": 300,
+              "output_tokens": 30,
+              "cached_input_tokens": 0,
+              "reasoning_output_tokens": 0
+            }
+          }
+        },
+        "timestamp": "2026-10-04T00:01:00Z"
+      },
+      {
+        "type": "event_msg",
+        "payload": {
+          "type": "task_complete",
+          "turn_id": "turn-a"
+        },
+        "timestamp": "2026-10-04T00:01:00Z"
+      }
+    ],
+    [
+      {
+        "type": "session_meta",
+        "payload": {
+          "id": "child",
+          "cwd": "/tmp/ledger-fixture/project-b",
+          "source": {
+            "subagent": {
+              "other": "worker"
+            }
+          },
+          "parent_thread_id": "chat-a"
+        },
+        "timestamp": "2026-10-04T00:01:00Z"
+      },
+      {
+        "type": "event_msg",
+        "payload": {
+          "type": "task_started",
+          "turn_id": "child-turn",
+          "root_turn_id": "turn-a"
+        },
+        "timestamp": "2026-10-04T00:01:00Z"
+      },
+      {
+        "type": "token_usage_record",
+        "payload": {
+          "response_id": "r-child",
+          "thread_id": "child",
+          "turn_id": "child-turn",
+          "root_turn_id": "turn-a",
+          "model": "gpt-5.4-mini",
+          "usage": {
+            "input_tokens": 50,
+            "output_tokens": 5,
+            "cached_input_tokens": 0,
+            "reasoning_output_tokens": 0
+          }
+        },
+        "timestamp": "2026-10-04T00:02:00Z"
+      }
+    ],
+    [
+      {
+        "type": "session_meta",
+        "payload": {
+          "id": "chat-a",
+          "cwd": "/tmp/ledger-fixture/project-b",
+          "source": "vscode"
+        },
+        "timestamp": "2026-10-04T00:01:00Z"
+      },
+      {
+        "type": "event_msg",
+        "payload": {
+          "type": "task_started",
+          "turn_id": "turn-b"
+        },
+        "timestamp": "2026-10-04T00:01:00Z"
+      },
+      {
+        "type": "turn_context",
+        "payload": {
+          "turn_id": "turn-b",
+          "model": "undocumented-model"
+        },
+        "timestamp": "2026-10-04T00:01:00Z"
+      },
+      {
+        "type": "event_msg",
+        "payload": {
+          "type": "user_message",
+          "message": "帮我修复代码 bug"
+        },
+        "timestamp": "2026-10-04T00:01:00Z"
+      },
+      {
+        "type": "token_usage_record",
+        "payload": {
+          "response_id": "r-b",
+          "thread_id": "chat-a",
+          "turn_id": "turn-b",
+          "root_turn_id": "turn-a",
+          "model": "undocumented-model",
+          "usage": {
+            "input_tokens": 70,
+            "output_tokens": 7,
+            "cached_input_tokens": 0,
+            "reasoning_output_tokens": 0
+          }
+        },
+        "timestamp": "2026-10-04T00:03:00Z"
+      }
+    ],
+    [
+      {
+        "type": "session_meta",
+        "payload": {
+          "id": "chat-a",
+          "cwd": "/tmp/ledger-fixture/project-a",
+          "source": "vscode"
+        },
+        "timestamp": "2026-10-04T00:01:00Z"
+      },
+      {
+        "type": "event_msg",
+        "payload": {
+          "type": "task_started",
+          "turn_id": "turn-a"
+        },
+        "timestamp": "2026-10-04T00:01:00Z"
+      },
+      {
+        "type": "turn_context",
+        "payload": {
+          "turn_id": "turn-a",
+          "model": "gpt-5.4"
+        },
+        "timestamp": "2026-10-04T00:01:00Z"
+      },
+      {
+        "type": "event_msg",
+        "payload": {
+          "type": "user_message",
+          "message": "帮我制作一个 PPT"
+        },
+        "timestamp": "2026-10-04T00:01:00Z"
+      },
+      {
+        "type": "token_usage_record",
+        "payload": {
+          "response_id": "r1",
+          "thread_id": "chat-a",
+          "turn_id": "turn-a",
+          "root_turn_id": "turn-a",
+          "model": "gpt-5.4",
+          "usage": {
+            "input_tokens": 100,
+            "output_tokens": 10,
+            "cached_input_tokens": 50,
+            "reasoning_output_tokens": 0
+          }
+        },
+        "timestamp": "2026-10-03T23:59:00Z"
+      },
+      {
+        "type": "token_usage_record",
+        "payload": {
+          "response_id": "r2",
+          "thread_id": "chat-a",
+          "turn_id": "turn-a",
+          "root_turn_id": "turn-a",
+          "model": "gpt-5.4",
+          "usage": {
+            "input_tokens": 200,
+            "output_tokens": 20,
+            "cached_input_tokens": 100,
+            "reasoning_output_tokens": 0
+          }
+        },
+        "timestamp": "2026-10-04T00:01:00Z"
+      },
+      {
+        "type": "token_usage_record",
+        "payload": {
+          "response_id": "r2",
+          "thread_id": "chat-a",
+          "turn_id": "turn-a",
+          "root_turn_id": "turn-a",
+          "model": "gpt-5.4",
+          "usage": {
+            "input_tokens": 200,
+            "output_tokens": 20,
+            "cached_input_tokens": 100,
+            "reasoning_output_tokens": 0
+          }
+        },
+        "timestamp": "2026-10-04T00:01:00Z"
+      },
+      {
+        "type": "token_usage_record",
+        "payload": {
+          "response_id": "inherited",
+          "thread_id": "parent",
+          "turn_id": "turn-a",
+          "root_turn_id": "turn-a",
+          "model": "gpt-5.4",
+          "usage": {
+            "input_tokens": 9000,
+            "output_tokens": 900,
+            "cached_input_tokens": 0,
+            "reasoning_output_tokens": 0
+          }
+        },
+        "timestamp": "2026-10-04T00:02:00Z"
+      },
+      {
+        "type": "event_msg",
+        "payload": {
+          "type": "token_count",
+          "info": {
+            "total_token_usage": {
+              "input_tokens": 300,
+              "output_tokens": 30,
+              "cached_input_tokens": 0,
+              "reasoning_output_tokens": 0
+            }
+          }
+        },
+        "timestamp": "2026-10-04T00:01:00Z"
+      },
+      {
+        "type": "event_msg",
+        "payload": {
+          "type": "task_complete",
+          "turn_id": "turn-a"
+        },
+        "timestamp": "2026-10-04T00:01:00Z"
+      }
+    ]
+  ],
+  "expected": {
+    "today": {
+      "total": 352,
+      "cached": 100,
+      "reasoning": 0,
+      "turns": 2,
+      "responses": 3,
+      "priced": 275,
+      "unpriced": 77,
+      "usd": "0.000635"
+    },
+    "yesterday": {
+      "total": 110,
+      "cached": 50,
+      "reasoning": 0,
+      "turns": 1,
+      "responses": 1,
+      "priced": 110,
+      "unpriced": 0,
+      "usd": "0.0002875"
+    },
+    "30d": {
+      "total": 462,
+      "cached": 150,
+      "reasoning": 0,
+      "turns": 2,
+      "responses": 4,
+      "priced": 385,
+      "unpriced": 77,
+      "usd": "0.0009225"
+    },
+    "all": {
+      "total": 462,
+      "cached": 150,
+      "reasoning": 0,
+      "turns": 2,
+      "responses": 4,
+      "priced": 385,
+      "unpriced": 77,
+      "usd": "0.0009225"
+    }
+  }
+}

@@ -521,6 +521,20 @@ final class LedgerScanner: @unchecked Sendable {
         result.modelUsage = models.values.sorted { $0.usage.total > $1.usage.total }
         return result
     }
+    func attributionKeys(logs: [ParsedLog]) -> [String: String] {
+        let internals = Set(logs.filter(\.internalAgent).map(\.sessionID))
+        var roots: [String: String] = [:]
+        for log in logs where !internals.contains(log.sessionID) {
+            for info in log.turns.values where roots[info.id] == nil { roots[info.id] = log.sessionID + ":" + info.id }
+        }
+        var owners: [String: String] = [:]
+        for log in logs where internals.contains(log.sessionID) {
+            for sample in log.samples {
+                if let root = roots[sample.rootTurnID] { owners[sample.sessionID + ":" + sample.turnID] = root }
+            }
+        }
+        return owners
+    }
     // The heatmap and ledger use the same response deduplication and date boundaries.
     private func forEachUniqueSample(logs: [ParsedLog], start: Date, end: Date, body: (UsageSample) -> Void) {
         var seen = Set<String>()
@@ -530,12 +544,15 @@ final class LedgerScanner: @unchecked Sendable {
             }
         }
     }
-    func dailyUsage(logs: [ParsedLog], now: Date = Date(), calendar: Calendar? = nil) -> [DailyUsage] {
+    func dailyUsage(logs: [ParsedLog], now: Date = Date(), calendar: Calendar? = nil, taskIDs: Set<String>? = nil) -> [DailyUsage] {
         let calendar = calendar ?? self.calendar
         let range = DateScope.month.interval(now: now, calendar: calendar)
         var days = (0..<30).map { DailyUsage(date: calendar.date(byAdding: .day, value: $0, to: range.start)!) }
         let indexes = Dictionary(uniqueKeysWithValues: days.enumerated().map { ($0.element.date, $0.offset) })
+        let owners = attributionKeys(logs: logs)
         forEachUniqueSample(logs: logs, start: range.start, end: range.end) { sample in
+            let key = owners[sample.sessionID + ":" + sample.turnID] ?? (sample.sessionID + ":" + sample.turnID)
+            if let taskIDs, !taskIDs.contains(key) { return }
             guard let index = indexes[calendar.startOfDay(for: sample.date)] else { return }
             days[index].usage = days[index].usage + sample.usage
             days[index].responses += 1

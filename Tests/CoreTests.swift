@@ -144,6 +144,7 @@ import Foundation
         try analyticsChecks(folder: folder)
         try pricingChecks(folder: folder)
         try activityChecks(folder: folder)
+        try sharedChecks(folder: folder)
         print("\(checks - failures)/\(checks) accounting and classification checks passed")
         if failures > 0 { exit(1) }
     }

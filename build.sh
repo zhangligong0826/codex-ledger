@@ -25,7 +25,7 @@ STAGING_DIR="$(mktemp -d /private/tmp/codex-ledger-build.XXXXXX)"
 STAGED_APP="$STAGING_DIR/Codex Ledger.app"
 trap 'rm -rf "$STAGING_DIR"' EXIT
 mkdir -p "$STAGED_APP/Contents/MacOS" "$STAGED_APP/Contents/Resources" "$PROJECT_DIR/.build/swift-cache" "$OUTPUT_DIR"
-SOURCES=("$PROJECT_DIR/Sources/LedgerPricing.swift" "$PROJECT_DIR/Sources/LedgerCore.swift" "$PROJECT_DIR/Sources/LedgerAnalytics.swift" "$PROJECT_DIR/Sources/LedgerGoals.swift" "$PROJECT_DIR/Sources/LedgerDemo.swift" "$PROJECT_DIR/Sources/LedgerStore.swift" "$PROJECT_DIR/Sources/LedgerViews.swift" "$PROJECT_DIR/Sources/LedgerGoalViews.swift" "$PROJECT_DIR/Sources/Localization.swift" "$PROJECT_DIR/Sources/CodexLedger.swift")
+SOURCES=("$PROJECT_DIR/Sources/LedgerPricing.swift" "$PROJECT_DIR/Sources/LedgerCore.swift" "$PROJECT_DIR/Sources/LedgerAnalytics.swift" "$PROJECT_DIR/Sources/LedgerGoals.swift" "$PROJECT_DIR/Sources/LedgerShare.swift" "$PROJECT_DIR/Sources/LedgerShareViews.swift" "$PROJECT_DIR/Sources/LedgerDemo.swift" "$PROJECT_DIR/Sources/LedgerStore.swift" "$PROJECT_DIR/Sources/LedgerViews.swift" "$PROJECT_DIR/Sources/LedgerGoalViews.swift" "$PROJECT_DIR/Sources/Localization.swift" "$PROJECT_DIR/Sources/CodexLedger.swift")
 case "$BUILD_ARCH" in
   universal) ARCHS=(arm64 x86_64) ;;
   arm64|x86_64) ARCHS=("$BUILD_ARCH") ;;
@@ -55,6 +55,7 @@ else
   cp "$PROJECT_DIR/AppIcon.icns" "$STAGED_APP/Contents/Resources/AppIcon.icns"
 fi
 xattr -cr "$STAGED_APP"
+cp "$PROJECT_DIR/Common/prices.json" "$STAGED_APP/Contents/Resources/prices.json"
 codesign --force --sign - "$STAGED_APP"
 codesign --verify --deep --strict "$STAGED_APP"
 VERSION="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$PROJECT_DIR/Info.plist")"
