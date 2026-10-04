@@ -21,6 +21,7 @@ ln -s /Applications "$STAGING_DIR/Applications"
 cp "$PROJECT_DIR/LICENSE" "$STAGING_DIR/LICENSE.txt"
 cp "$PROJECT_DIR/README.zh-CN.md" "$STAGING_DIR/README.zh-CN.md"
 cp "$PROJECT_DIR/README.md" "$STAGING_DIR/README.md"
+cp "$PROJECT_DIR/PRICING.md" "$STAGING_DIR/PRICING.md"
 hdiutil create -ov -format UDZO -volname "Codex Ledger $VERSION" -srcfolder "$STAGING_DIR" "$OUTPUT_DIR/$DMG_NAME"
 hdiutil verify "$OUTPUT_DIR/$DMG_NAME"
 (cd "$OUTPUT_DIR" && shasum -a 256 "$ZIP_NAME" "$DMG_NAME" > CHECKSUMS.txt)

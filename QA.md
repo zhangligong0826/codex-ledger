@@ -10,6 +10,7 @@ Version 1.1.0 · 2026-10-04
 - All token fields agree across task/project/conversation summaries. Per-conversation models preserve accounting, including child agents and project scopes. Read-only metadata lookup leaves fixture databases unchanged; missing/incompatible schemas fall back safely.
 - CSV checks include escaping, formula neutralization, UTF-8 BOM, localization and scope. Native save dialogs exported a 3-chat project summary, a 1-chat scoped summary and its 2 turns. Python CSV parsing confirmed totals and paths match the UI.
 - Real local logs were checked with read-only diagnostics for Today, Last 30 days and All time; project/conversation/task totals and subset relationships agreed. No personal logs or exports are included in this repository. On the development Mac, cold scans took approximately 6, 10 and 97 seconds respectively; timing is data-dependent.
+- After adding pricing, Today and All time were checked again: all project/conversation/task/model cost totals and priced/unpriced token coverage agreed. Cold scans took approximately 6 and 94 seconds.
 - Universal binary builds for arm64 and x86_64. The archived app passes strict ad-hoc signature verification; ZIP and DMG integrity checks pass.
 
 ## Native UI checks
@@ -29,4 +30,4 @@ Fixed clipping in the overview, loading counters, uneven summary cards, English 
 
 ## Limits
 
-Login startup has not been tested by logging out/rebooting. Physical multi-display arrangements and an independent other-Mac Gatekeeper first launch have not been tested. Releases are ad-hoc signed, not Apple notarized. The pre-cost build passed native CI on macOS 14 Apple Silicon, current Apple Silicon and macOS 15 Intel. The cost addition requires another CI run; current status is visible in GitHub Actions. Headless native tests do not validate Intel UI appearance. The ICNS provides a static glass-style icon, not a native dynamic Icon Composer icon.
+Login startup has not been tested by logging out/rebooting. Physical multi-display arrangements and an independent other-Mac Gatekeeper first launch have not been tested. Releases are ad-hoc signed, not Apple notarized. The cost build passed all three native CI jobs on macOS 14 Apple Silicon, current Apple Silicon and macOS 15 Intel ([run 37184143925](https://github.com/zhangligong0826/codex-ledger/actions/runs/37184143925)). Headless native tests do not validate Intel UI appearance. The ICNS provides a static glass-style icon, not a native dynamic Icon Composer icon.
