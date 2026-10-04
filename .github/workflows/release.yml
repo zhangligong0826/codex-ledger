@@ -1,0 +1,35 @@
+name: Draft release
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  package:
+    runs-on: macos-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Require version tag
+        shell: zsh {0}
+        run: |
+          version="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' Info.plist)"
+          [[ "$GITHUB_REF" == "refs/tags/v$version" ]] || { print -u2 'Select the matching version tag when dispatching.'; exit 1; }
+      - run: zsh test.sh
+      - run: zsh build.sh
+      - run: zsh package.sh
+      - name: Verify packages
+        shell: zsh {0}
+        run: |
+          unzip -t dist/*.zip
+          cd dist
+          shasum -a 256 -c CHECKSUMS.txt
+      - name: Create draft for human review
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: zsh {0}
+        run: |
+          version="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' Info.plist)"
+          gh release create "v$version" --verify-tag --draft --title "Codex Ledger $version" --notes-file CHANGELOG.md dist/*.zip dist/*.dmg dist/CHECKSUMS.txt

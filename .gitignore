@@ -1,0 +1,7 @@
+.build/
+dist/
+*.app/
+*.zip
+*.dmg
+.DS_Store
+*.log

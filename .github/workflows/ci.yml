@@ -1,0 +1,31 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-14, macos-latest, macos-15-intel]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Accounting tests
+        run: zsh test.sh
+      - name: Build native app
+        run: CODEX_LEDGER_ARCH="$(uname -m)" zsh build.sh
+      - name: Verify and run diagnostic without personal data
+        shell: zsh {0}
+        run: |
+          codesign --verify --deep --strict "dist/Codex Ledger.app"
+          unzip -t dist/*.zip
+          mkdir -p "$RUNNER_TEMP/ledger-empty/sessions"
+          CODEX_LEDGER_SOURCE="$RUNNER_TEMP/ledger-empty" "dist/Codex Ledger.app/Contents/MacOS/CodexLedger" --diagnose --scope=all

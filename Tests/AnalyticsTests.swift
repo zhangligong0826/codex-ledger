@@ -1,0 +1,113 @@
+import Foundation
+import SQLite3
+
+extension CoreTests {
+    static func analyticsChecks(folder: URL) throws {
+        let resolver = ProjectResolver()
+        let repository = folder.appendingPathComponent("repo with spaces"), nested = repository.appendingPathComponent("Sources")
+        try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
+        func git(_ args: [String]) throws {
+            let process = Process(); process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+            process.arguments = ["-C", repository.path] + args
+            process.standardOutput = FileHandle.nullDevice; process.standardError = FileHandle.nullDevice
+            try process.run(); process.waitUntilExit()
+            expect(process.terminationStatus == 0, "test Git fixture command succeeds")
+        }
+        try git(["init", "--initial-branch=main"])
+        try git(["-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "-c", "commit.gpgsign=false", "commit", "--allow-empty", "-m", "Fixture"])
+        let worktree = folder.appendingPathComponent("linked worktree")
+        try git(["worktree", "add", "-b", "fixture", worktree.path])
+        expect(resolver.resolve(repository.path) == resolver.resolve(nested.path), "repository subdirectory shares project identity")
+        expect(resolver.resolve(repository.path) == resolver.resolve(worktree.path), "linked worktree shares the main repository identity")
+        let alias = folder.appendingPathComponent("repo alias")
+        try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: repository)
+        expect(resolver.resolve(alias.path) == resolver.resolve(repository.path), "symlinked workspaces do not create duplicate projects")
+        let first = folder.appendingPathComponent("one/Report"), second = folder.appendingPathComponent("two/Report")
+        try FileManager.default.createDirectory(at: first, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: second, withIntermediateDirectories: true)
+        expect(resolver.resolve(first.path).name == resolver.resolve(second.path).name && resolver.resolve(first.path).id != resolver.resolve(second.path).id, "same folder names keep distinct full-path identities")
+        expect(resolver.resolve("") == .unknown && resolver.resolve("relative/path") == .unknown, "missing or relative directories stay unidentified")
+        expect(resolver.resolve(folder.appendingPathComponent("deleted-folder").path).path.hasSuffix("deleted-folder"), "deleted absolute directories retain their recorded project")
+        func task(_ id: String, _ chat: String, _ cwd: String, _ amount: Int64, _ offset: TimeInterval) -> LedgerTask {
+            var usage = TokenUsage(); usage.input = amount - 10; usage.output = 10; usage.cached = 20; usage.reasoning = 5
+            let date = Date(timeIntervalSince1970: 1000 + offset)
+            return LedgerTask(id: id, sessionID: chat, title: "Prompt " + id, category: .coding, reason: "", usage: usage, date: date, models: ["fixture-model"], artifacts: [], finished: true, responses: 1, subagentResponses: 0, workingDirectory: cwd, lastActivity: date)
+        }
+        let tasks = [task("a", "chat-1", nested.path, 100, 0), task("b", "chat-1", worktree.path, 200, 1), task("c", "chat-2", repository.path, 300, 2), task("d", "chat-1", second.path, 400, 3), task("e", "chat-3", "", 50, 4)]
+        let snapshot = LedgerAnalytics.enrich(LedgerSnapshot(tasks: tasks), resolver: resolver, titles: ["chat-1": "Renamed conversation"])
+        expect(snapshot.projects.count == 3 && snapshot.conversations.count == 3, "multiple turns and chats aggregate into project and conversation rows")
+        expect(snapshot.projects.reduce(TokenUsage()) { $0 + $1.usage } == snapshot.usage, "all project totals and subsets equal task totals")
+        expect(snapshot.conversations.reduce(TokenUsage()) { $0 + $1.usage } == snapshot.usage, "all conversation totals and subsets equal task totals")
+        let chat = snapshot.conversations.first { $0.id == "chat-1" }!
+        expect(chat.usage.total == 700 && chat.tasks.count == 3 && chat.responses == 3, "conversation accounting sums all its turns")
+        expect(chat.title == "Renamed conversation" && chat.spansProjects, "local title enrichment and cross-project badge")
+        let project = snapshot.projects.first { $0.path == repository.path }!
+        let scoped = project.conversations.first { $0.id == "chat-1" }!
+        expect(scoped.usage.total == 300 && scoped.spansProjects && project.usage.total == 600, "project conversation excludes usage belonging to other projects")
+        expect(snapshot.projects.first { $0.id == ProjectIdentity.unknown.id }?.usage.total == 50, "unknown project retains tokens")
+        expect(snapshot.conversations.first { $0.id == "chat-2" }?.title == "Prompt c", "missing metadata falls back to a user request")
+        expect(chat.lastActivity == tasks[3].lastActivity && project.lastActivity == tasks[2].lastActivity, "last active uses latest response time")
+        expect(snapshot.projects.map { $0.usage.total } == [600, 400, 50], "projects rank by descending consumption")
+        LedgerText.language = "en"
+        let csv = LedgerCSV.renderProjects(snapshot.projects, translate: L)
+        expect(csv.hasPrefix("\u{feff}Projects,Project path,Conversations") && csv.contains("\"600\""), "project CSV has English labels and matching totals")
+        let scopedCSV = LedgerCSV.renderConversations(project.conversations, projectPath: project.path, translate: L)
+        expect(scopedCSV.contains("This project only") && scopedCSV.contains("\"300\"") && !scopedCSV.contains("\"700\""), "project conversation CSV preserves scope")
+        expect(LedgerCSV.renderConversations(snapshot.conversations, translate: L).contains("Entire conversation"), "global conversation CSV marks full scope")
+        expect(L("1 个对话") == "1 conversation", "conversation singular translation")
+        let metadata = folder.appendingPathComponent("titles.sqlite")
+        var db: OpaquePointer?
+        sqlite3_open(metadata.path, &db)
+        sqlite3_exec(db, "CREATE TABLE threads(id TEXT, title TEXT); INSERT INTO threads VALUES('chat-1', 'Renamed conversation');", nil, nil, nil)
+        sqlite3_close(db)
+        let before = try Data(contentsOf: metadata)
+        expect(ConversationMetadata.readTitles(metadata)["chat-1"] == "Renamed conversation", "read-only SQLite title discovery")
+        let after = try Data(contentsOf: metadata)
+        expect(after == before, "metadata lookup leaves the database byte-for-byte unchanged")
+        let incompatible = folder.appendingPathComponent("unsupported.sqlite")
+        sqlite3_open(incompatible.path, &db); sqlite3_exec(db, "CREATE TABLE threads(id TEXT);", nil, nil, nil); sqlite3_close(db)
+        expect(ConversationMetadata.readTitles(incompatible).isEmpty, "incompatible metadata schema degrades to log titles")
+        expect(ConversationMetadata.readTitles(folder.appendingPathComponent("absent.sqlite")).isEmpty, "metadata reader does not create a missing database")
+        expect(!FileManager.default.fileExists(atPath: folder.appendingPathComponent("absent.sqlite").path), "missing metadata file stays absent")
+
+        let parsedFile = folder.appendingPathComponent("cwd.jsonl")
+        let parser = LogParser()
+        let data = line("session_meta", ["id": "cwd-chat", "cwd": first.path])
+            + line("event_msg", ["type": "task_started", "turn_id": "cwd-a"])
+            + line("turn_context", ["turn_id": "cwd-a", "cwd": first.path, "model": "fixture"])
+            + line("token_usage_record", ["thread_id": "cwd-chat", "turn_id": "cwd-a", "response_id": "cwd-ra", "usage": usage(100, 10)])
+            + line("event_msg", ["type": "task_started", "turn_id": "cwd-b"])
+            + line("turn_context", ["turn_id": "cwd-b", "cwd": second.path, "model": "fixture"])
+            + line("token_usage_record", ["thread_id": "cwd-chat", "turn_id": "cwd-b", "response_id": "cwd-rb", "usage": usage(200, 20)])
+        try data.write(to: parsedFile, atomically: true, encoding: .utf8)
+        let parsed = try parser.parse(url: parsedFile)
+        expect(parsed.turns["cwd-a"]?.workingDirectory == first.path && parsed.turns["cwd-b"]?.workingDirectory == second.path, "turn context records directory changes in the same conversation")
+        let enriched = LedgerAnalytics.enrich(LedgerScanner().snapshot(logs: [parsed, parsed], start: .distantPast, end: .distantFuture), resolver: resolver, titles: [:])
+        expect(enriched.projects.count == 2 && enriched.usage.total == 330 && enriched.conversations.count == 1, "duplicate/archived copy does not inflate project or conversation totals")
+        let day = parser.date("2026-10-04T00:00:00Z")!
+        let crossDay = line("session_meta", ["id": "day-chat", "cwd": first.path]) + line("event_msg", ["type": "task_started", "turn_id": "day-turn"])
+            + line("token_usage_record", ["thread_id": "day-chat", "turn_id": "day-turn", "response_id": "yesterday", "usage": usage(30, 3)], "2026-10-03T23:59:00Z")
+            + line("token_usage_record", ["thread_id": "day-chat", "turn_id": "day-turn", "response_id": "today", "usage": usage(40, 4)], "2026-10-04T00:01:00Z")
+        try crossDay.write(to: parsedFile, atomically: true, encoding: .utf8)
+        let split = LedgerAnalytics.enrich(LedgerScanner().snapshot(logs: [try parser.parse(url: parsedFile)], start: day, end: day.addingTimeInterval(86400)), resolver: resolver, titles: [:])
+        expect(split.projects.first?.usage.total == 44 && split.conversations.first?.usage.total == 44, "project and conversation share per-response date boundaries")
+        expect(split.conversations.first?.modelUsage.reduce(TokenUsage()) { $0 + $1.usage } == split.usage, "conversation model distribution retains response-level accounting")
+        expect(enriched.projects.allSatisfy { $0.conversations.flatMap(\.modelUsage).reduce(TokenUsage()) { $0 + $1.usage } == $0.usage }, "scoped conversation models equal project totals")
+        let parent = line("session_meta", ["id": "parent-chat", "cwd": first.path])
+            + line("event_msg", ["type": "task_started", "turn_id": "parent-turn"])
+            + line("token_usage_record", ["thread_id": "parent-chat", "turn_id": "parent-turn", "response_id": "parent-r", "usage": usage(100, 10)])
+        let child = line("session_meta", ["id": "child-chat", "cwd": second.path, "source": ["subagent": ["other": "worker"]]])
+            + line("event_msg", ["type": "task_started", "turn_id": "child-turn", "root_turn_id": "parent-turn"])
+            + line("token_usage_record", ["thread_id": "child-chat", "turn_id": "child-turn", "root_turn_id": "parent-turn", "response_id": "child-r", "usage": usage(50, 5)])
+        try parent.write(to: parsedFile, atomically: true, encoding: .utf8)
+        let parentLog = try parser.parse(url: parsedFile)
+        try child.write(to: parsedFile, atomically: true, encoding: .utf8)
+        let childLog = try parser.parse(url: parsedFile)
+        let combined = LedgerAnalytics.enrich(LedgerScanner().snapshot(logs: [parentLog, childLog, childLog], start: .distantPast, end: .distantFuture), resolver: resolver, titles: [:])
+        expect(combined.projects.count == 1 && combined.projects.first?.path == first.path && combined.usage.total == 165, "deduplicated subagent usage inherits its parent project")
+        expect(combined.conversations.first?.id == "parent-chat" && combined.conversations.first?.modelUsage.reduce(TokenUsage()) { $0 + $1.usage } == combined.usage, "subagent model distribution follows parent conversation")
+        let demo = LedgerDemo.snapshot()
+        expect(demo.projects.reduce(TokenUsage()) { $0 + $1.usage } == demo.usage && demo.conversations.reduce(TokenUsage()) { $0 + $1.usage } == demo.usage, "public synthetic demo preserves all aggregation totals")
+        LedgerText.language = "zh"
+    }
+}
