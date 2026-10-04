@@ -237,7 +237,8 @@ struct SharePreview: Identifiable {
         let category = overview ? nil : categoryFilter, model = overview ? nil : modelFilter
         let query = overview ? "" : search
         let unassigned = !overview && unassignedOnly
-        let selected = overview ? snapshot.tasks : filteredTasks
+        let listedGoalIDs = Set(filteredGoals.map(\.id))
+        let selected = overview ? snapshot.tasks : goalList ? snapshot.tasks.filter { task in goalBook.owner(task).map { listedGoalIDs.contains($0) } ?? false } : filteredTasks
         let chosenGoal = goalID.flatMap { id in goals.first { $0.id == id } }
         let kind = chatID != nil ? "对话用量" : goalID != nil ? "目标花费" : projectID != nil ? "项目用量" : goalList ? "目标账本" : "用量总览"
         let title = chatID != nil ? conversation?.title ?? L(kind) : chosenGoal?.goal.name ?? project?.name ?? L(kind)
@@ -250,7 +251,7 @@ struct SharePreview: Identifiable {
             let monthTasks = demoMonth ?? LedgerAnalytics.enrich(scanner.snapshot(logs: sourceLogs, start: monthRange.start, end: monthRange.end, root: path), resolver: resolver, titles: [:]).tasks
             let matching = monthTasks.filter { task in
                 if let goalID, goalBook.owner(task) != goalID { return false }
-                if goalList && goalBook.owner(task) == nil { return false }
+                if goalList { return goalBook.owner(task).map { listedGoalIDs.contains($0) } ?? false }
                 if unassigned && goalBook.owner(task) != nil { return false }
                 if let projectID, task.projectID != projectID { return false }
                 if let chatID, task.sessionID != chatID { return false }

@@ -274,5 +274,10 @@
   "查看未归属任务": "Review unassigned turns",
   "原始聊天无法打开，请在 Codex 中查找该对话。": "Could not open the original chat. Find it in Codex.",
   "只读本机记录，不上传聊天内容。": "Reads local records only. No chats uploaded.",
-  "下载与安装帮助": "Download and installation help"
+  "下载与安装帮助": "Download and installation help",
+  "累计": "Lifetime",
+  "删除目标只移除归属规则，不删除日志。": "Deleting a goal removes assignments only. Logs are preserved.",
+  "用途与模型分布": "Categories and models",
+  "项目用量": "Project usage",
+  "对话用量": "Conversation usage"
 }

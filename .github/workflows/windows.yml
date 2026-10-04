@@ -4,6 +4,7 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  workflow_call:
 permissions:
   contents: read
 jobs:
@@ -16,7 +17,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
         with:
           dotnet-version: '10.0.x'
       - name: Accounting and shared fixtures
@@ -49,7 +50,7 @@ jobs:
           if ($data.total -ne 0 -or $data.dailyUsage.Count -ne 30) { throw 'Empty-source diagnostic failed' }
           $p = Start-Process "$dir/unins000.exe" -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -Wait -PassThru
           if ($p.ExitCode -ne 0 -or (Test-Path "$dir/CodexLedger.exe")) { throw 'Uninstall failed' }
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
           name: windows-validation
@@ -58,7 +59,7 @@ jobs:
             ${{ runner.temp }}/ui-checks.txt
             ${{ runner.temp }}/ui-errors.txt
             ${{ runner.temp }}/diagnostic.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: windows-packages
           path: |

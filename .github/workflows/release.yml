@@ -1,36 +1,57 @@
-name: Draft release
+name: Draft cross-platform release
 on:
   workflow_dispatch:
 permissions:
-  contents: write
+  contents: read
 jobs:
-  package:
+  checks:
+    uses: ./.github/workflows/ci.yml
+  windows:
+    uses: ./.github/workflows/windows.yml
+  mac:
     runs-on: macos-latest
     timeout-minutes: 25
+    needs: checks
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
-      - name: Require version tag
+      - name: Require matching version tag
         shell: zsh {0}
         run: |
-          version="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' Info.plist)"
-          [[ "$GITHUB_REF" == "refs/tags/v$version" ]] || { print -u2 'Select the matching version tag when dispatching.'; exit 1; }
-      - run: zsh test.sh
+          version="$(/usr/libexec/PlistBuddy -c 'Print LedgerReleaseVersion' Info.plist)"
+          [[ "$GITHUB_REF" == "refs/tags/v$version" ]] || { print -u2 'Dispatch on the matching release tag.'; exit 1; }
       - run: CODEX_LEDGER_NATIVE_ICON=required zsh build.sh
       - run: CODEX_LEDGER_NATIVE_ICON=required zsh package.sh
-      - name: Verify packages
-        shell: zsh {0}
-        run: |
-          zsh verify-native-icon.sh "dist/Codex Ledger.app"
-          unzip -t dist/*.zip
-          cd dist
-          shasum -a 256 -c CHECKSUMS.txt
-      - name: Create draft for human review
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: mac-packages
+          path: |
+            dist/*macOS-universal.zip
+            dist/*macOS-universal.dmg
+            dist/CHECKSUMS.txt
+  draft:
+    needs: [mac, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: mac-packages
+          path: artifacts
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: windows-packages
+          path: artifacts
+      - name: Validate exact asset inventory and create draft
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-        shell: zsh {0}
         run: |
-          version="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' Info.plist)"
-          gh release create "v$version" --verify-tag --draft --title "Codex Ledger $version" --notes-file CHANGELOG.md dist/*.zip dist/*.dmg dist/CHECKSUMS.txt
+          python3 distribution/release-assets.py artifacts
+          version="$(python3 -c 'import plistlib; print(plistlib.load(open("Info.plist","rb"))["LedgerReleaseVersion"])')"
+          gh release create "v$version" --verify-tag --draft --prerelease --title "Codex Ledger $version" --notes-file distribution/RELEASE-NOTES.md artifacts/Codex-Ledger-* artifacts/CHECKSUMS.txt

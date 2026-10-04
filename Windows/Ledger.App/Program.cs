@@ -76,7 +76,10 @@ public sealed class LedgerState {
     public bool Known=>Ready&&(Current.Warnings.Count==0||Lifetime.Turns.Count>0);
     public bool CanShare=>Ready&&!Busy&&(Current.Warnings.Count==0||Lifetime.Turns.Count>0);
     public ShareSnapshot Share(bool overview=false) {
-        if(!CanShare)throw new InvalidOperationException(T("正在整理日志，请稍候"));var turns=overview?Current.Turns:Filter(Context());var monthly=overview?Month.Turns:Filter(Context(Month.Turns));var goal=Book.Goals.FirstOrDefault(g=>g.ID==GoalID);
+        if(!CanShare)throw new InvalidOperationException(T("正在整理日志，请稍候"));bool goalList=!overview&&Page=="goals"&&GoalID==null&&ChatID==null;
+        var matchingGoals=Book.Goals.Where(g=>Search.Length==0||g.Name.Contains(Search,StringComparison.OrdinalIgnoreCase)).Select(g=>g.ID).ToHashSet();
+        var turns=overview?Current.Turns:goalList?Current.Turns.Where(t=>Book.Owner(t) is string id&&matchingGoals.Contains(id)).ToArray():Filter(Context());
+        var monthly=overview?Month.Turns:goalList?Month.Turns.Where(t=>Book.Owner(t) is string id&&matchingGoals.Contains(id)).ToArray():Filter(Context(Month.Turns));var goal=Book.Goals.FirstOrDefault(g=>g.ID==GoalID);
         return new(Kind(overview),overview?T("用量总览"):Title,Range,Scanner.Zone.Id,turns.Aggregate(new TokenUsage(),(a,t)=>a+t.Usage),turns.Aggregate(new CostEstimate(),(a,t)=>a+t.Cost),turns.Count,turns.Select(t=>t.SessionID).Distinct().Count(),turns.SelectMany(t=>t.Models).Where(m=>m!="未知模型").Distinct().Count(),Scanner.Daily(monthly,DateTimeOffset.Now).ToArray(),!overview&&ChatID==null?goal?.CompletionCost:null,goal?.CompletedAt,goal?.CompletionPriceDate,!overview&&(Search.Length>0||Category!=null||Model!=null||UnassignedOnly),Current.Warnings.Count>0,Pricing.Date);
     }
 }
