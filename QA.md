@@ -114,3 +114,11 @@ Windows validation remains hosted x64 CI, including UI rendering, installer/upgr
 - Storage checks cover structurally invalid/null settings/books, invalid-import preservation, byte-exact corrupt-data recovery, rotation, nonnegative budgets, formula-safe numeric negative budget differences and historical completion pricing.
 - Version metadata is validated from Common/version.json. Windows CI now installs the checksum-pinned public Beta.2 package before the new installer and checks retained preferences, goal assignment and frozen completion amount, followed by portable execution and uninstall retention.
 - Hosted CI, final binary checksums, download-page update and tap acceptance will be recorded after they complete; this local record does not claim those pending checks or physical-device acceptance.
+
+
+### Beta.3 hosted acceptance before packaging
+
+- Functional source `1445bf3cd207273e6e12c1732b49e9be3c03300f` passed [Mac matrix 37222322215](https://github.com/zhangligong0826/codex-ledger/actions/runs/37222322215) on macOS 14 Apple Silicon, current Apple Silicon and macOS 15 Intel. All include synthetic sharing, Vision QR/privacy and both portable-archive directions.
+- [Windows run 37222322214](https://github.com/zhangligong0826/codex-ledger/actions/runs/37222322214) passed 213 core checks (including Windows path cases), 36 bilingual/appearance/page renders and additional share/scope/budget/loading checks, instance IPC, clipboard, save failure, both architecture packages, genuine Beta.2 upgrade, portable execution and uninstall preservation. Upgraded storage retained one completed goal, Chinese preference, exact `0.151456789` frozen USD and `2026-10-01` price date; original files remained byte-identical.
+- Independent Vision inspection decoded all four Windows cards and confirmed default private-title hiding. New Mac 880×580 goal/settings previews were inspected in EN/light and CN/dark with synthetic data. These are offscreen/hosted checks, not physical-device acceptance.
+- CI exposed and corrected Windows default text encoding, supported Swift compiler expression complexity and a WPF dispatcher pipe-I/O deadlock. Phase logging and a 120-second Windows UI deadline now prevent silently hung checks.
