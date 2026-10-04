@@ -1,6 +1,7 @@
 .build/
 dist/
 *.app/
+!Windows/Ledger.App/
 *.zip
 *.dmg
 .DS_Store
