@@ -155,7 +155,7 @@ struct StatusPopover: View {
             if store.busy { HStack { ProgressView().controlSize(.mini); Text(store.scanStatus).font(.system(size: 10)).lineLimit(1); Spacer() }.padding(.horizontal, 14).padding(.bottom, 6) }
             Divider()
             HStack {
-                Text("Codex Ledger \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.1.0")").font(.system(size: 9)).foregroundStyle(.secondary)
+                Text("Codex Ledger \(Bundle.main.object(forInfoDictionaryKey: "LedgerReleaseVersion") as? String ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.2.0-beta.1")").font(.system(size: 9)).foregroundStyle(.secondary)
                 Button { store.refresh() } label: {
                     TimelineView(.periodic(from: .now, by: 1)) { context in
                         Text(store.busy ? L("正在更新…") : L("\(max(0, 30 - Int(context.date.timeIntervalSince(store.today.refreshedAt)))) 秒后更新")).font(.system(size: 9)).foregroundStyle(.secondary).monospacedDigit()

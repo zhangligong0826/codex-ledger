@@ -61,12 +61,12 @@ struct ShareCardView: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack { Text(L("近 30 天")).font(.system(size: 11, weight: .semibold)); Spacer(); Text("\(value.activeDays)/30 " + L("活跃天数")).font(.system(size: 9)).foregroundStyle(.secondary) }
                 // Same chronological grid on both platforms; every cell is a local calendar day.
-                HStack(spacing: 5) {
+                HStack(spacing: 3) {
                     ForEach(0..<columns, id: \.self) { column in
-                        VStack(spacing: 5) {
+                        VStack(spacing: 3) {
                             ForEach(0..<7) { row in
                                 let index = column * 7 + row - offset
-                                RoundedRectangle(cornerRadius: 3).fill(index >= 0 && index < value.days.count ? greens[value.days[index].intensity(peak: peak)] : Color.clear).frame(width: 19, height: 19)
+                                RoundedRectangle(cornerRadius: 3).fill(index >= 0 && index < value.days.count ? greens[value.days[index].intensity(peak: peak)] : Color.clear).frame(width: 13, height: 13)
                             }
                         }
                     }

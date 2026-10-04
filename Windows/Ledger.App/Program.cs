@@ -57,10 +57,10 @@ public sealed class LedgerState {
         if(Busy)return;Busy=true;Notify();var source=Prefs.Source;var scope=Scope;var categories=new Dictionary<string,string>(Prefs.Categories);
         try {var result=await Task.Run(()=>{var scanned=Scanner.Scan(source);var now=DateTimeOffset.Now;return(scanned,all:Scanner.Snapshot(scanned.Logs,DateScope.All,now,scanned.Warnings,categories),today:Scanner.Snapshot(scanned.Logs,DateScope.Today,now,scanned.Warnings,categories),month:Scanner.Snapshot(scanned.Logs,DateScope.Month,now,scanned.Warnings,categories),current:Scanner.Snapshot(scanned.Logs,scope,now,scanned.Warnings,categories),titles:ConversationMetadata.Titles(source));});
             if(source!=Prefs.Source)return;Logs=result.scanned.Logs;Lifetime=result.all;Today=result.today;Month=result.month;Current=result.current;Titles=result.titles;foreach(var log in Logs)if(!Titles.ContainsKey(log.SessionID)&&log.FirstPrompt.Length>0)Titles[log.SessionID]=log.FirstPrompt;Ready=true;
-        }catch(Exception e){Ready=false;Error=T("读取失败")+": "+e.Message;}finally{Busy=false;Notify();}
+        }catch(Exception e){Ready=false;Error=T("读取失败")+": "+e.Message;}finally{Busy=false;if(Ready&&scope!=Scope)SetScope(Scope);Notify();}
     }
     public void SetScope(DateScope scope){Scope=scope;if(Ready&&!Busy){var range=Dates.Interval(scope,DateTimeOffset.Now,Scanner.Zone);Current=new(Lifetime.Turns.Select(t=>Slice(t,range.Start,range.End)).Where(t=>t!=null).Cast<LedgerTurn>().OrderByDescending(t=>t.Usage.Total).ToArray(),Lifetime.Warnings,Lifetime.Files,Lifetime.Malformed);Notify();}}
-    private static LedgerTurn? Slice(LedgerTurn turn,DateTimeOffset start,DateTimeOffset end){var s=turn.Samples.Where(s=>s.Date>=start&&s.Date<end).ToArray();return s.Length==0?null:turn with{Usage=s.Aggregate(new TokenUsage(),(a,x)=>a+x.Usage),Date=s.Min(x=>x.Date),LastActivity=s.Max(x=>x.Date),Responses=s.Length,Samples=s};}
+    private static LedgerTurn? Slice(LedgerTurn turn,DateTimeOffset start,DateTimeOffset end){var s=turn.Samples.Where(s=>s.Date>=start&&s.Date<end).ToArray();return s.Length==0?null:turn with{Usage=s.Aggregate(new TokenUsage(),(a,x)=>a+x.Usage),Date=s.Min(x=>x.Date),LastActivity=s.Max(x=>x.Date),Responses=s.Length,SubagentResponses=s.Count(x=>x.SessionID!=turn.SessionID),Samples=s};}
     public void Navigate(string page){Page=page;GoalID=null;ProjectID=null;ChatID=null;Clear();}
     public void Clear(){Search="";Category=null;Model=null;UnassignedOnly=false;Notify();}
     public void Back(){if(ChatID!=null)ChatID=null;else if(ProjectID!=null)ProjectID=null;else GoalID=null;Clear();}
@@ -73,6 +73,7 @@ public sealed class LedgerState {
     public string Kind(bool overview=false)=>overview?"用量总览":ChatID!=null?"对话用量":GoalID!=null?"目标花费":ProjectID!=null?"项目用量":Page=="goals"?"目标账本":"用量总览";
     public string Title=>ChatID!=null?ChatTitle(ChatID):GoalID!=null?Book.Goals.FirstOrDefault(g=>g.ID==GoalID)?.Name??T("目标账本"):ProjectID!=null?Lifetime.Turns.FirstOrDefault(t=>t.Project.ID==ProjectID)?.Project.Name??T("项目"):T(Page switch{"projects"=>"项目","conversations"=>"对话","tasks"=>"全部任务","models"=>"模型用量","settings"=>"设置",_=>"目标账本"});
     public string Range=>T(Scope switch{DateScope.Yesterday=>"昨天",DateScope.Week=>"近 7 天",DateScope.Month=>"近 30 天",DateScope.All=>"历史累计",_=>"今天"});
+    public bool Known=>Ready&&(Current.Warnings.Count==0||Lifetime.Turns.Count>0);
     public bool CanShare=>Ready&&!Busy&&(Current.Warnings.Count==0||Lifetime.Turns.Count>0);
     public ShareSnapshot Share(bool overview=false) {
         if(!CanShare)throw new InvalidOperationException(T("正在整理日志，请稍候"));var turns=overview?Current.Turns:Filter(Context());var monthly=overview?Month.Turns:Filter(Context(Month.Turns));var goal=Book.Goals.FirstOrDefault(g=>g.ID==GoalID);

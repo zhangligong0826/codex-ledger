@@ -2,7 +2,8 @@
 set -euo pipefail
 PROJECT_DIR="${0:A:h}"
 OUTPUT_DIR="${CODEX_LEDGER_OUTPUT_DIR:-$PROJECT_DIR/dist}"
-VERSION="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$PROJECT_DIR/Info.plist")"
+BUNDLE_VERSION="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$PROJECT_DIR/Info.plist")"
+VERSION="$(/usr/libexec/PlistBuddy -c 'Print LedgerReleaseVersion' "$PROJECT_DIR/Info.plist" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$PROJECT_DIR/Info.plist")"
 ZIP_NAME="Codex-Ledger-$VERSION-macOS-universal.zip"
 DMG_NAME="Codex-Ledger-$VERSION-macOS-universal.dmg"
 [[ -f "$OUTPUT_DIR/$ZIP_NAME" ]] || { print -u2 'Run zsh build.sh with the default universal architecture first.'; exit 1; }
@@ -13,7 +14,7 @@ trap 'rm -rf "$STAGING_DIR"' EXIT
 ditto -x -k "$OUTPUT_DIR/$ZIP_NAME" "$STAGING_DIR"
 APP="$STAGING_DIR/Codex Ledger.app"
 APP_VERSION="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$APP/Contents/Info.plist")"
-[[ "$APP_VERSION" == "$VERSION" ]] || { print -u2 'Build version does not match Info.plist.'; exit 1; }
+[[ "$APP_VERSION" == "$BUNDLE_VERSION" ]] || { print -u2 'Build version does not match Info.plist.'; exit 1; }
 APP_ARCHS=" $(lipo -archs "$APP/Contents/MacOS/CodexLedger") "
 [[ "$APP_ARCHS" == *' arm64 '* && "$APP_ARCHS" == *' x86_64 '* ]] || { print -u2 'Packaging requires both arm64 and x86_64.'; exit 1; }
 codesign --verify --deep --strict "$APP"

@@ -3,7 +3,12 @@ using System.Text;
 namespace CodexLedger;
 public sealed class ProjectResolver {
     private readonly Dictionary<string,(DateTime,ProjectIdentity)> cache=new(OperatingSystem.IsWindows()?StringComparer.OrdinalIgnoreCase:StringComparer.Ordinal);
-    public static string Normalize(string path) { if(string.IsNullOrWhiteSpace(path)||!Path.IsPathFullyQualified(path))return "";return Path.TrimEndingDirectorySeparator(Path.GetFullPath(path)); }
+    public static string Normalize(string path) { if(string.IsNullOrWhiteSpace(path)||!Path.IsPathFullyQualified(path))return "";var full=Path.GetFullPath(path);var root=Path.GetPathRoot(full)!;var current=root;
+        foreach(var segment in full[root.Length..].Split([Path.DirectorySeparatorChar,Path.AltDirectorySeparatorChar],StringSplitOptions.RemoveEmptyEntries)) {
+            current=Path.Combine(current,segment);var dir=new DirectoryInfo(current);
+            if(dir.Exists&&(dir.Attributes&FileAttributes.ReparsePoint)!=0)current=dir.ResolveLinkTarget(true)?.FullName??current;
+        }
+        return Path.TrimEndingDirectorySeparator(current); }
     public ProjectIdentity Resolve(string directory) {
         string path;try{path=Normalize(directory);}catch(Exception e)when(e is ArgumentException or NotSupportedException or IOException){return ProjectIdentity.Unknown;}
         if(path.Length==0)return ProjectIdentity.Unknown;
@@ -20,9 +25,9 @@ public sealed class ProjectResolver {
                     if(File.Exists(commonMarker)){var pointer=Pointer(commonMarker);if(string.IsNullOrEmpty(pointer))break;common=Path.GetFullPath(pointer,git);}
                     if(File.Exists(Path.Combine(git,"HEAD"))&&Directory.Exists(Path.Combine(common,"objects"))&&Directory.Exists(Path.Combine(common,"refs"))) {
                         var root=Path.GetFileName(common)==".git"?Directory.GetParent(common)?.FullName??current.FullName:current.FullName;
-                        result=new("git:"+ID(common),Path.GetFileName(root),root);
+                        result=new("git:"+ID(Normalize(common)),Path.GetFileName(root),root);
                     }
-                }catch(Exception e)when(e is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException){}break;
+                }catch(Exception e)when(e is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException or DecoderFallbackException){}break;
             }
             current=current.Parent;
         }

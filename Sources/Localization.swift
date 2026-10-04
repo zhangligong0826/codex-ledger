@@ -4,6 +4,7 @@ import Foundation
 enum LedgerText {
     static var language = "en"
     static let english: [String: String] = [
+        "项目用量": "Project usage", "对话用量": "Conversation usage",
         "分享": "Share",
         "生成分享卡片": "Create share card",
         "保存当前界面": "Save current view",
