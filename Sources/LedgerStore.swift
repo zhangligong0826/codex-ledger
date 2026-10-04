@@ -80,7 +80,10 @@ enum LedgerPreferences {
         applyAppearance()
         if LedgerPreferences.isDemo { loadDemo(); return }
         refresh()
-        timer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in Task { @MainActor in self?.refresh() } }
+        timer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
+            guard let store = self else { return }
+            Task { @MainActor in store.refresh() }
+        }
     }
     func refresh() {
         if LedgerPreferences.isDemo { loadDemo(); return }
