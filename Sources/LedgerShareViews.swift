@@ -9,7 +9,7 @@ import UniformTypeIdentifiers
         filter.setValue(Data(ShareSnapshot.downloadURL.utf8), forKey: "inputMessage")
         filter.setValue("M", forKey: "inputCorrectionLevel")
         guard let result = filter.outputImage?.transformed(by: CGAffineTransform(scaleX: 8, y: 8)),
-              let cg = CIContext().createCGImage(result, from: result.extent) else { return nil }
+              let cg = CIContext(options: [.useSoftwareRenderer: true]).createCGImage(result, from: result.extent) else { return nil }
         return NSImage(cgImage: cg, size: NSSize(width: cg.width, height: cg.height))
     }
     static func capture(_ view: NSView) -> NSImage? {

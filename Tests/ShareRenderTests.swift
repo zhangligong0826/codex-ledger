@@ -29,8 +29,8 @@ import Vision
                 let file = directory.appendingPathComponent("share-\(language)-\(dark ? "dark" : "light").png")
                 try png.write(to: file)
                 let cg = rep.cgImage!
-                let qr = VNDetectBarcodesRequest(); qr.symbologies = [.qr]
-                let text = VNRecognizeTextRequest(); text.recognitionLevel = .accurate; text.recognitionLanguages = ["en-US", "zh-Hans"]
+                let qr = VNDetectBarcodesRequest(); qr.symbologies = [.qr]; qr.usesCPUOnly = true
+                let text = VNRecognizeTextRequest(); text.recognitionLevel = .accurate; text.recognitionLanguages = ["en-US", "zh-Hans"]; text.usesCPUOnly = true
                 try VNImageRequestHandler(cgImage: cg).perform([qr, text])
                 precondition(qr.results?.contains { $0.payloadStringValue == ShareSnapshot.downloadURL } == true, "QR must decode to stable install entry")
                 let labels = (text.results ?? []).compactMap { $0.topCandidates(1).first?.string }.joined(separator: " ")
