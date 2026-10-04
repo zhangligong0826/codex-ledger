@@ -28,7 +28,13 @@ jobs:
         shell: pwsh
         run: |
           dotnet build Windows/Ledger.App -c Release
-          $p = Start-Process -FilePath Windows/Ledger.App/bin/Release/net10.0-windows/CodexLedger.exe -ArgumentList '--ui-smoke', "--output=$env:RUNNER_TEMP/ui-previews" -Wait -PassThru -RedirectStandardOutput "$env:RUNNER_TEMP/ui-checks.txt" -RedirectStandardError "$env:RUNNER_TEMP/ui-errors.txt"
+          $p = Start-Process -FilePath Windows/Ledger.App/bin/Release/net10.0-windows/CodexLedger.exe -ArgumentList '--ui-smoke', "--output=$env:RUNNER_TEMP/ui-previews" -PassThru -RedirectStandardOutput "$env:RUNNER_TEMP/ui-checks.txt" -RedirectStandardError "$env:RUNNER_TEMP/ui-errors.txt"
+          if (-not $p.WaitForExit(120000)) {
+            $p.Kill($true)
+            Get-Content "$env:RUNNER_TEMP/ui-checks.txt"
+            Get-Content "$env:RUNNER_TEMP/ui-errors.txt"
+            throw 'Windows UI smoke exceeded 120 seconds'
+          }
           Get-Content "$env:RUNNER_TEMP/ui-checks.txt"
           Get-Content "$env:RUNNER_TEMP/ui-errors.txt"
           if ($p.ExitCode -ne 0) { throw 'Windows UI smoke failed' }
