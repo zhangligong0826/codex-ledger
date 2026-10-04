@@ -188,14 +188,16 @@ enum LedgerCSV {
         if let first = text.first, ["=", "+", "-", "@", "\t", "\r"].contains(String(first)) { text = "'" + text }
         return "\"" + text.replacingOccurrences(of: "\"", with: "\"\"") + "\""
     }
-    static func render(_ tasks: [LedgerTask], translate: (String) -> String = { $0 }) -> String {
+    static func render(_ tasks: [LedgerTask], goalNames: [String: String]? = nil, translate: (String) -> String = { $0 }) -> String {
         let header = ["时间", "任务", "分类", "输入tokens", "缓存输入tokens", "输出tokens", "推理输出tokens", "总tokens", "模型", "关联文件", "聊天ID", "分类依据", "项目", "项目路径", "工作目录"] + LedgerPricing.csvHeaders
-        var rows = [header.map(translate).joined(separator: ",")]
+        let goalHeaders = goalNames == nil ? [] : ["目标"]
+        var rows = [(header + goalHeaders).map(translate).joined(separator: ",")]
         rows += tasks.map { task -> String in
             let usage = task.usage
             let project = task.projectName == ProjectIdentity.unknown.name ? translate(task.projectName) : task.projectName
             let values: [String] = [task.date.formatted(.iso8601), task.title, translate(task.category.title), String(usage.input), String(usage.cached), String(usage.output), String(usage.reasoning), String(usage.total), task.models.map(translate).joined(separator: "; "), task.artifacts.joined(separator: "; "), task.sessionID, translate(task.reason), project, task.projectPath, task.workingDirectory]
-            return (values + LedgerPricing.csvValues(task.cost)).map(field).joined(separator: ",")
+            let goals = goalNames.map { [$0[task.id] ?? translate("未归入目标")] } ?? []
+            return (values + LedgerPricing.csvValues(task.cost) + goals).map(field).joined(separator: ",")
         }
         return "\u{feff}" + rows.joined(separator: "\r\n")
     }

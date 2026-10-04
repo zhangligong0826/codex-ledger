@@ -45,8 +45,15 @@ Login startup has not been tested by logging out/rebooting. Physical multi-displ
 
 ## Slim overview and activity grid
 
-- The overview is 300 points wide and at most 560 points tall, with three category rows and a visible project/conversation action. Header and footer stay fixed; overview scroll indicators are hidden, including when the screen forces a shorter panel.
+- The overview is 300 points wide and at most 560 points tall, with three category rows and a visible goal-ledger action. Header and footer stay fixed; overview scroll indicators are hidden, including when the screen forces a shorter panel.
 - Daily accounting shares response deduplication with the ledger. Checks cover exactly 30 calendar days, start/end boundaries, duplicates/archived copies, cross-day tasks, child calls, absent days, monthly subset equality and the 23-hour daylight-saving day in Los Angeles. Demo monthly totals equal its heatmap.
 - Offscreen native view rendering with synthetic data was inspected in English/Chinese, Light/Dark, loading, empty and error states. These are generated previews, not screenshots of the installed app. Failed reads use unknown values rather than zero in the overview.
 - The taller overview was also rendered at 420 points with the always-show-scrollbars preference registered in the preview process; no right-side track appeared. English/Chinese and light/dark previews, plus loading/empty/error states, were reinspected after the height change.
 - Hover interactions, click-through and installed window placement remain pending native app operation authorization.
+
+## Named goals and outcome costs
+
+- Goal attribution uses the deduplicated parent-attributed turns, independent of inferred categories. Checks cover overlapping project/chat/turn rules, cross-project chats, explicit unassignment, inherited restoration, token subsets and exact Decimal cost reconciliation with unassigned usage.
+- Store checks cover independent lifetime totals across date changes, goal/chat/back navigation, search, persistence, rename/delete safety and unreadable-book preservation. Completion captures cost, tokens and the price date, survives restart and remains unchanged by later assignments; reopening clears it. Unreadable source data cannot be marked as zero-cost completion.
+- Goal CSV shares view summaries and exports range/lifetime/completion values and pricing coverage. Turn CSV includes the goal name and retains formula/quote/newline escaping.
+- New views are checked using offscreen native SwiftUI renders with synthetic data, including English/Chinese, light/dark, empty goals, completed goals, three-level navigation, assignment entry points and the 880 × 580 minimum. Actual app menu/sheet interactions remain pending the existing native app operation authorization.

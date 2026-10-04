@@ -2,7 +2,7 @@ import Foundation
 
 // Money stays Decimal until display. Pricing is applied to each deduplicated
 // response, before a turn or model is aggregated; totals are never repriced.
-struct CostEstimate: Equatable {
+struct CostEstimate: Equatable, Codable {
     var inputUSD = Decimal.zero
     var cachedUSD = Decimal.zero
     var outputUSD = Decimal.zero

@@ -117,6 +117,9 @@ struct TaskCard: View {
                         .frame(width: 34, height: 34).background(task.category.color.opacity(0.09), in: RoundedRectangle(cornerRadius: 9))
                     VStack(alignment: .leading, spacing: 6) {
                         Text(task.title == "未记录用户请求" || task.title == "Codex 后台检查" ? L(task.title) : task.title).font(.system(size: 12, weight: .medium)).lineLimit(expanded ? nil : 2).multilineTextAlignment(.leading)
+                        if let id = store.goalBook.owner(task), let goal = store.goalBook.goals.first(where: { $0.id == id }) {
+                            Label(goal.name, systemImage: "target").font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(1)
+                        }
                         HStack(spacing: 8) {
                             Text(L(task.category.title)).foregroundStyle(task.category.color)
                             Text(task.date.formatted(Date.FormatStyle().month().day().hour().minute().locale(Locale(identifier: store.language == "en" ? "en_US" : "zh_CN")))).foregroundStyle(.secondary)
@@ -143,6 +146,7 @@ struct TaskCard: View {
                     Spacer()
                     Button(L("打开聊天")) { store.openChat(task) }
                 }
+                GoalAssignmentMenu(store: store, target: GoalTarget(kind: .turn, id: task.id), suggestedName: task.title)
                 Text(L(task.reason)).font(.system(size: 11)).foregroundStyle(.secondary)
                 UsageMetrics(usage: task.usage, cost: task.cost)
                 Text(task.projectPath.isEmpty ? L("未识别项目") : task.projectPath).font(.system(size: 10, design: .monospaced)).foregroundStyle(.secondary).textSelection(.enabled)

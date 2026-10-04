@@ -131,8 +131,8 @@ struct StatusPopover: View {
                                 }.contentShape(Rectangle())
                             }.buttonStyle(.plain).help(L("\(count) 个任务 · \(exactTokens(value)) token"))
                         }
-                        Button { store.navigate(.projects); openDashboard() } label: {
-                            HStack { Text(L("查看项目与对话")); Spacer(); Image(systemName: "arrow.up.right") }.font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary)
+                        Button { store.navigate(.goals); openDashboard() } label: {
+                            HStack { Text(L("查看目标账本")); Spacer(); Image(systemName: "arrow.up.right") }.font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary)
                         }.buttonStyle(.plain)
                     }.padding(10).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
                     if !store.snapshot.warnings.isEmpty { Label(L("部分日志不可读，账本内可查看详情"), systemImage: "exclamationmark.circle").font(.system(size: 10)).foregroundStyle(.orange) }
@@ -149,6 +149,7 @@ struct StatusPopover: View {
                 }.buttonStyle(.plain).disabled(store.busy).keyboardShortcut("r", modifiers: .command)
                 Spacer(minLength: 3)
                 Menu(L("选项")) {
+                    Button(L("目标账本")) { store.navigate(.goals); openDashboard() }
                     Button(L("项目")) { store.navigate(.projects); openDashboard() }
                     Button(L("对话")) { store.navigate(.conversations); openDashboard() }
                     Button(L("全部工作")) { store.navigate(.tasks); openDashboard() }
@@ -251,16 +252,17 @@ struct DashboardView: View {
                     }.frame(maxWidth: .infinity, alignment: .leading)
                     if !store.showSettings {
                         Picker(L("时间"), selection: $store.scope) { ForEach(DateScope.allCases) { Text(L($0.rawValue)).tag($0) } }.pickerStyle(.menu).labelsHidden().frame(width: 135)
+                        if store.page == .goals { Button { store.newGoal() } label: { Label(L("新建目标"), systemImage: "plus") } }
                         Button { store.exportCSV() } label: { Image(systemName: "square.and.arrow.up") }.help(L("导出 CSV")).disabled(store.busy || !store.rangeReady || store.dataUnavailable)
                     }
                     Button { store.refresh() } label: { Image(systemName: "arrow.clockwise") }.help(L("刷新")).disabled(store.busy).keyboardShortcut("r", modifiers: .command)
                 }
                 if store.showSettings { settings }
                 else {
-                    if store.selectedProjectID != nil || store.selectedConversationID != nil {
+                    if store.selectedGoalID != nil || store.selectedProjectID != nil || store.selectedConversationID != nil {
                         HStack {
                             Button { store.back() } label: { Label(L("返回"), systemImage: "chevron.left") }
-                            Text(store.selectedProjectID != nil ? L("仅当前项目") : L("整个对话")).font(.system(size: 11)).foregroundStyle(.secondary)
+                            Text(store.selectedGoalID != nil ? L("仅当前目标") : store.selectedProjectID != nil ? L("仅当前项目") : L("整个对话")).font(.system(size: 11)).foregroundStyle(.secondary)
                             if store.conversation?.spansProjects == true { Label(L("涉及多个项目"), systemImage: "folder.badge.questionmark").font(.system(size: 11)).foregroundStyle(.secondary) }
                             Spacer()
                             if let chat = store.conversation {
@@ -269,23 +271,29 @@ struct DashboardView: View {
                             }
                         }
                     }
+                    if let entry = store.goal { GoalDetailHeader(store: store, entry: entry) }
+                    if store.page != .goals {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 145))], spacing: 10) {
                         SummaryCard(title: L("总 token"), value: store.rangeReady ? compactTokens(store.contextUsage.total) : "…", subtitle: L("输入 + 输出 · 含缓存"), symbol: "chart.bar")
                         SummaryCard(title: L("任务轮次"), value: store.rangeReady ? "\(store.contextTasks.count)" : "…", subtitle: store.rangeReady ? L("\(store.contextTasks.filter(\.finished).count) 轮已结束") : L("正在整理日志…"), symbol: "square.stack")
                         SummaryCard(title: L("关联文件"), value: store.rangeReady ? "\(Set(store.contextTasks.flatMap(\.artifacts)).count)" : "…", subtitle: L("已存在的本地文件"), symbol: "doc.on.doc")
                         SummaryCard(title: L("使用模型"), value: store.rangeReady ? "\(Set(store.contextTasks.flatMap(\.models)).subtracting(["未知模型"]).count)" : "…", subtitle: L("已识别的不同模型"), symbol: "cpu")
                     }
-                    UsageMetrics(usage: store.contextUsage, cost: store.contextCost, pending: !store.rangeReady)
+                    UsageMetrics(usage: store.contextUsage, cost: store.contextCost, pending: !store.rangeReady || store.dataUnavailable)
+                    } else if store.selectedGoalID != nil {
+                        Text(L("所选日期") + " · " + (store.rangeReady && !store.dataUnavailable ? L("\(store.contextTasks.count) 个任务") + " · " + compactTokens(store.contextUsage.total) + " tokens" : "—")).font(.system(size: 11)).foregroundStyle(.secondary)
+                        UsageMetrics(usage: store.contextUsage, cost: store.contextCost, pending: !store.rangeReady || store.dataUnavailable)
+                    }
                     if store.busy { HStack { ProgressView().controlSize(.small); Text(store.scanStatus).font(.system(size: 11)).foregroundStyle(.secondary) } }
                     if !store.snapshot.warnings.isEmpty { Text(store.snapshot.warnings.prefix(3).map(L).joined(separator: "\n")).font(.system(size: 11)).foregroundStyle(.orange).textSelection(.enabled) }
                     HStack {
                         Text(listTitle).font(.system(size: 14, weight: .semibold)).lineLimit(1)
                         Spacer(minLength: 6)
-                        if !store.search.isEmpty || store.categoryFilter != nil || store.modelFilter != nil { Button(L("清除筛选")) { store.clearFilters() }.font(.system(size: 11)) }
-                        TextField(L("搜索项目、对话或模型"), text: $store.search).textFieldStyle(.roundedBorder).frame(maxWidth: 215)
+                        if !store.search.isEmpty || store.categoryFilter != nil || store.modelFilter != nil || store.unassignedOnly { Button(L("清除筛选")) { store.clearFilters() }.font(.system(size: 11)) }
+                        TextField(searchPrompt, text: $store.search).textFieldStyle(.roundedBorder).frame(maxWidth: 215)
                     }
                     if store.selectedConversationID != nil { conversationSummary }
-                    content.id(store.page.rawValue + (store.selectedProjectID ?? "") + (store.selectedConversationID ?? "") + store.scope.rawValue).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    content.id((store.selectedGoalID ?? "") + store.page.rawValue + (store.selectedProjectID ?? "") + (store.selectedConversationID ?? "") + store.scope.rawValue).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     HStack {
                         Text(store.rangeReady ? L("\(store.snapshot.files) 份日志 · 分类可手动修正") : L("正在整理日志…")).font(.system(size: 10)).foregroundStyle(.secondary)
                         Spacer()
@@ -293,24 +301,34 @@ struct DashboardView: View {
                     }
                 }
             }.padding(20).frame(maxWidth: .infinity, maxHeight: .infinity)
-        }.id(store.language).background(Color(nsColor: .windowBackgroundColor))
+        }.sheet(item: $store.goalEditor) { draft in GoalEditorView(store: store, draft: draft) }
+        .id(store.language).background(Color(nsColor: .windowBackgroundColor))
             .alert("Codex Ledger", isPresented: Binding(get: { store.errorMessage != nil }, set: { if !$0 { store.errorMessage = nil } })) { Button(L("知道了")) { store.errorMessage = nil } } message: { Text(store.errorMessage ?? "") }
     }
     var title: String {
         if store.showSettings { return L("设置") }
         if store.selectedConversationID != nil { return store.conversation.map { displayTitle($0.title) } ?? L("对话") }
+        if store.selectedGoalID != nil { return store.goal?.goal.name ?? L("目标账本") }
         if store.selectedProjectID != nil { return store.project.map { displayProject($0.name) } ?? L("项目") }
-        switch store.page { case .projects: return L("项目"); case .conversations: return L("对话"); case .models: return L("模型用量"); default: return L("你的工作，用量可见") }
+        switch store.page { case .goals: return L("目标账本"); case .projects: return L("项目"); case .conversations: return L("对话"); case .models: return L("模型用量"); default: return L("你的工作，用量可见") }
     }
     var listTitle: String {
         if store.selectedConversationID != nil { return L("任务轮次") }
+        if store.selectedGoalID != nil { return L("目标中的对话") }
         if store.selectedProjectID != nil { return L("项目中的对话") }
+        if store.unassignedOnly { return L("未归入目标") }
         return store.categoryFilter.map { L($0.title) } ?? store.modelFilter ?? title
+    }
+    var searchPrompt: String {
+        if store.selectedConversationID != nil || store.page == .tasks { return L("搜索任务或模型") }
+        if store.selectedGoalID != nil || store.page == .conversations { return L("搜索对话标题或路径") }
+        switch store.page { case .goals: return L("搜索目标或路径"); case .projects: return L("搜索项目或路径"); default: return L("搜索模型") }
     }
     var sidebar: some View {
         VStack(alignment: .leading, spacing: 15) {
             LedgerHeader(compact: true)
             VStack(spacing: 3) {
+                navigation("目标账本", "target", .goals, store.goalBook.goals.count)
                 navigation("项目", "folder", .projects, store.snapshot.projects.count)
                 navigation("对话", "bubble.left.and.bubble.right", .conversations, store.snapshot.conversations.count)
                 navigation("全部工作", "square.grid.2x2", .tasks, store.snapshot.tasks.count)
@@ -339,7 +357,8 @@ struct DashboardView: View {
     @ViewBuilder var content: some View {
         if !store.rangeReady { emptyState(loading: true) }
         else if store.selectedConversationID != nil || store.page == .tasks { taskList }
-        else if store.selectedProjectID != nil || store.page == .conversations { conversationList }
+        else if store.selectedGoalID != nil || store.selectedProjectID != nil || store.page == .conversations { conversationList }
+        else if store.page == .goals { GoalListView(store: store) }
         else if store.page == .projects { projectList }
         else { modelList }
     }
@@ -355,7 +374,7 @@ struct DashboardView: View {
                         Text(projectSubtitle(project)).font(.system(size: 11)).foregroundStyle(.secondary)
                       }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
                     }.buttonStyle(.plain)
-                    UsageMetrics(usage: project.usage, cost: project.cost)
+                    HStack { UsageMetrics(usage: project.usage, cost: project.cost); Spacer(); GoalAssignmentMenu(store: store, target: GoalTarget(kind: .project, id: project.id), suggestedName: displayProject(project.name)) }
                 }.padding(15).frame(maxWidth: .infinity, alignment: .leading).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
             } } } }
         }
@@ -376,7 +395,7 @@ struct DashboardView: View {
                         Text(conversationPaths(chat)).font(.system(size: 10, design: .monospaced)).foregroundStyle(.secondary).lineLimit(2)
                       }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
                     }.buttonStyle(.plain)
-                    UsageMetrics(usage: chat.usage, cost: chat.cost)
+                    HStack { UsageMetrics(usage: chat.usage, cost: chat.cost); Spacer(); GoalAssignmentMenu(store: store, target: GoalTarget(kind: .conversation, id: chat.id), suggestedName: displayTitle(chat.title)) }
                 }.padding(15).frame(maxWidth: .infinity, alignment: .leading).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
             } } } }
         }
