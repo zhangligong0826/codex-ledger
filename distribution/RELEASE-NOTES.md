@@ -9,7 +9,7 @@ Codex Ledger 1.2.0-beta.2 brings native macOS menu-bar and Windows system-tray a
 
 Install: https://zhangligong0826.github.io/codex-ledger/
 
-Mac: open the universal DMG and drag Codex Ledger to Applications, or use `brew install --cask zhangligong0826/tap/codex-ledger` once the tap has been updated for this release.
+Mac: open the universal DMG and drag Codex Ledger to Applications, or use `brew install --cask zhangligong0826/tap/codex-ledger`.
 Windows: download the installer for your architecture. Installation is per-user; no separate .NET installation is required. Portable ZIPs are also available.
 
 This free beta is ad-hoc signed on macOS and unsigned on Windows, without Apple notarization. Follow the documented first-launch steps and your device's policy. Never disable system security checks to install it.
