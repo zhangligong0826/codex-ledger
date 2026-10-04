@@ -227,7 +227,7 @@ struct DashboardView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         rowHeader(displayProject(project.name), "folder", project.usage.total)
                         Text(project.path.isEmpty ? L("缺少工作目录") : project.path).font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary).lineLimit(2).help(project.path)
-                        Text(L("\(project.conversations.count) 个对话") + " · " + L("\(project.tasks.count) 个任务") + " · " + L("最近活动") + " " + date(project.lastActivity)).font(.system(size: 11)).foregroundStyle(.secondary)
+                        Text(projectSubtitle(project)).font(.system(size: 11)).foregroundStyle(.secondary)
                         UsageMetrics(usage: project.usage)
                     }.padding(15).frame(maxWidth: .infinity, alignment: .leading).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12)).contentShape(Rectangle())
                 }.buttonStyle(.plain)
@@ -242,11 +242,11 @@ struct DashboardView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         rowHeader(displayTitle(chat.title), "bubble.left.and.bubble.right", chat.usage.total)
                         HStack {
-                            Text(L("\(chat.tasks.count) 个任务") + " · " + L("\(chat.responses) 次响应") + " · " + date(chat.lastActivity))
+                            Text(conversationSubtitle(chat))
                             Spacer()
                             if chat.spansProjects { Text(L("涉及多个项目")) }
                         }.font(.system(size: 11)).foregroundStyle(.secondary)
-                        Text(Array(Set(chat.tasks.map(\.projectPath))).sorted().map { $0.isEmpty ? L("未识别项目") : $0 }.joined(separator: " · ")).font(.system(size: 10, design: .monospaced)).foregroundStyle(.secondary).lineLimit(2)
+                        Text(conversationPaths(chat)).font(.system(size: 10, design: .monospaced)).foregroundStyle(.secondary).lineLimit(2)
                         UsageMetrics(usage: chat.usage)
                     }.padding(15).frame(maxWidth: .infinity, alignment: .leading).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12)).contentShape(Rectangle())
                 }.buttonStyle(.plain)
@@ -309,6 +309,17 @@ struct DashboardView: View {
         }
     }
     func displayProject(_ value: String) -> String { value == ProjectIdentity.unknown.name ? L(value) : value }
+    func projectSubtitle(_ project: ProjectUsage) -> String {
+        let activity = L("最近活动") + " " + date(project.lastActivity)
+        return [L("\(project.conversations.count) 个对话"), L("\(project.tasks.count) 个任务"), activity].joined(separator: " · ")
+    }
+    func conversationSubtitle(_ chat: ConversationUsage) -> String {
+        [L("\(chat.tasks.count) 个任务"), L("\(chat.responses) 次响应"), date(chat.lastActivity)].joined(separator: " · ")
+    }
+    func conversationPaths(_ chat: ConversationUsage) -> String {
+        let paths = Array(Set(chat.tasks.map(\.projectPath))).sorted()
+        return paths.map { $0.isEmpty ? L("未识别项目") : $0 }.joined(separator: " · ")
+    }
     func displayTitle(_ value: String) -> String { ["未记录用户请求", "Codex 后台检查"].contains(value) ? L(value) : value }
     func date(_ value: Date) -> String { value.formatted(Date.FormatStyle().month().day().hour().minute().locale(Locale(identifier: store.language == "en" ? "en_US" : "zh_CN"))) }
     var settings: some View {
