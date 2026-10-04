@@ -11,6 +11,7 @@ Version 1.1.0 · 2026-10-04
 - CSV checks include escaping, formula neutralization, UTF-8 BOM, localization and scope. Native save dialogs exported a 3-chat project summary, a 1-chat scoped summary and its 2 turns. Python CSV parsing confirmed totals and paths match the UI.
 - Real local logs were checked with read-only diagnostics for Today, Last 30 days and All time; project/conversation/task totals and subset relationships agreed. No personal logs or exports are included in this repository. On the development Mac, cold scans took approximately 6, 10 and 97 seconds respectively; timing is data-dependent.
 - After adding pricing, Today and All time were checked again: all project/conversation/task/model cost totals and priced/unpriced token coverage agreed. Cold scans took approximately 6 and 94 seconds.
+- Homebrew Cask syntax and `brew style` pass; its SHA-256 matches the verified universal ZIP. Public asset download and isolated Homebrew install/uninstall remain pending publication.
 - Universal binary builds for arm64 and x86_64. The archived app passes strict ad-hoc signature verification; ZIP and DMG integrity checks pass.
 
 ## Native UI checks

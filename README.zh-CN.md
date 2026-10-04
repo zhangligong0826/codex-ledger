@@ -2,9 +2,11 @@
 
 原生 macOS 菜单栏应用，查看本机 Codex 的 token 用在了哪些项目、对话和工作上。
 
-[English](README.md) · [下载安装包](https://github.com/zhangligong0826/codex-ledger/releases/latest)
+[English](README.md) · [版本发布](https://github.com/zhangligong0826/codex-ledger/releases)
 
 ## 安装
+
+**当前为候选版本：** 源码和本地安装包已就绪，公开安装包及 Homebrew Tap 等待最后的原生界面验收。下方 Homebrew 命令在首次正式发布后可用。
 
 支持 macOS 14 及以上，通用包同时支持 Apple Silicon 和 Intel。
 

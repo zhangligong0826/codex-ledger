@@ -4,9 +4,11 @@
 
 A native macOS menu bar app that shows what your local Codex tokens worked on: coding, questions, research, presentations, documents, spreadsheets, and design.
 
-[简体中文](README.zh-CN.md) · [Download](https://github.com/zhangligong0826/codex-ledger/releases/latest) · [Homebrew tap](https://github.com/zhangligong0826/homebrew-tap)
+[简体中文](README.zh-CN.md) · [Releases](https://github.com/zhangligong0826/codex-ledger/releases) · [Homebrew tap](https://github.com/zhangligong0826/homebrew-tap)
 
 ## Install
+
+**Release candidate:** source and local packages are ready. The first public binary release and Homebrew tap are pending final native UI acceptance. The Homebrew command below becomes available after that release.
 
 Requires **macOS 14 or later**. One universal binary supports Apple Silicon and Intel.
 
