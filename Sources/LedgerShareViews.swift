@@ -33,7 +33,7 @@ import UniformTypeIdentifiers
     }
 }
 
-struct ShareCardView: View {
+@MainActor struct ShareCardView: View {
     let value: ShareSnapshot
     let title: String
     let language: String
@@ -41,60 +41,88 @@ struct ShareCardView: View {
     private var offset: Int { value.days.first.map { (Calendar.current.component(.weekday, from: $0.date) + 6) % 7 } ?? 0 }
     private var columns: Int { (offset + value.days.count + 6) / 7 }
     private let greens = [Color.primary.opacity(0.07), Color(red: 0.61, green: 0.82, blue: 0.66), Color(red: 0.29, green: 0.66, blue: 0.43), Color(red: 0.15, green: 0.49, blue: 0.31), Color(red: 0.07, green: 0.34, blue: 0.23)]
+    private var note: String {
+        var parts = [L("API 成本估算，非实际账单"), value.priceDate]
+        if value.warning { parts.append(L("部分日志不可读")) }
+        if value.cost.unpricedTokens > 0 || value.monthlyCost.unpricedTokens > 0 { parts.append(L("含未计价用量")) }
+        return parts.joined(separator: " · ")
+    }
     var body: some View {
         VStack(alignment: .leading, spacing: 13) {
-            HStack { Label("Codex Ledger", systemImage: "chart.bar.fill").font(.system(size: 12, weight: .semibold)); Spacer(); Text("LOCAL").font(.system(size: 8, weight: .bold)).foregroundStyle(.secondary) }
+            brand
             Text(title).font(.system(size: 23, weight: .bold)).lineLimit(2).frame(height: 57, alignment: .topLeading)
-            VStack(alignment: .leading, spacing: 5) {
-                Text(L("预估 API 花费") + " · USD").font(.system(size: 10)).foregroundStyle(.secondary)
-                Text(LedgerPricing.display(value.cost)).font(.system(size: 38, weight: .semibold, design: .rounded)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.55)
-                Text(value.range + (value.filtered ? " · " + L("已筛选") : "")).font(.system(size: 10)).foregroundStyle(.secondary)
-                HStack(spacing: 12) {
-                    Text(compactTokens(value.usage.total) + " tokens")
-                    Text("\(value.turns) " + L("任务轮次"))
-                    Text("\(value.models) " + L("模型"))
-                }.font(.system(size: 10, weight: .medium)).lineLimit(1)
-            }
+            amount
             if let cost = value.completionCost {
                 HStack { Text(L("完成时")); Spacer(); Text(LedgerPricing.display(cost) + " USD").bold() }.font(.system(size: 10))
             }
-            VStack(alignment: .leading, spacing: 8) {
-                HStack { Text(L("近 30 天")).font(.system(size: 11, weight: .semibold)); Spacer(); Text("\(value.activeDays)/30 " + L("活跃天数")).font(.system(size: 9)).foregroundStyle(.secondary) }
-                // Same chronological grid on both platforms; every cell is a local calendar day.
-                HStack(spacing: 3) {
-                    ForEach(0..<columns, id: \.self) { column in
-                        VStack(spacing: 3) {
-                            ForEach(0..<7) { row in
-                                let index = column * 7 + row - offset
-                                RoundedRectangle(cornerRadius: 3).fill(index >= 0 && index < value.days.count ? greens[value.days[index].intensity(peak: peak)] : Color.clear).frame(width: 13, height: 13)
-                            }
-                        }
-                    }
-                    Spacer(minLength: 4)
-                    VStack(alignment: .trailing, spacing: 5) {
-                        Text(LedgerPricing.display(value.monthlyCost)).font(.system(size: 18, weight: .semibold, design: .rounded)).lineLimit(1).minimumScaleFactor(0.5)
-                        Text("USD").font(.system(size: 8)).foregroundStyle(.secondary)
-                        Text(compactTokens(value.monthlyUsage.total) + " tokens").font(.system(size: 9)).foregroundStyle(.secondary)
-                    }
-                }
-                if let first = value.days.first, let last = value.days.last {
-                    Text(dayLabel(first.date) + " — " + dayLabel(last.date) + " · " + value.timezone).font(.system(size: 8)).foregroundStyle(.secondary).lineLimit(1)
-                }
-            }.padding(12).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
+            heatmap
             Spacer(minLength: 0)
-            HStack(spacing: 10) {
-                if let qr = ShareImages.qr() {
-                    Image(nsImage: qr).interpolation(.none).resizable().frame(width: 49, height: 49).padding(5).background(.white).clipShape(RoundedRectangle(cornerRadius: 6))
-                }
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(L("扫码下载 · Mac / Windows")).font(.system(size: 10, weight: .semibold))
-                    Text("zhangligong0826.github.io/codex-ledger").font(.system(size: 7)).lineLimit(1)
-                    Text(L("本地统计 · MIT 开源")).font(.system(size: 8)).foregroundStyle(.secondary)
+            footer
+            Text(note).font(.system(size: 7)).foregroundStyle(.secondary).lineLimit(2)
+        }.padding(22).frame(width: 360, height: 480).background(Color(nsColor: .windowBackgroundColor))
+    }
+    private var brand: some View {
+        HStack {
+            Label("Codex Ledger", systemImage: "chart.bar.fill").font(.system(size: 12, weight: .semibold))
+            Spacer()
+            Text("LOCAL").font(.system(size: 8, weight: .bold)).foregroundStyle(.secondary)
+        }
+    }
+    private var amount: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(L("预估 API 花费") + " · USD").font(.system(size: 10)).foregroundStyle(.secondary)
+            Text(LedgerPricing.display(value.cost)).font(.system(size: 38, weight: .semibold, design: .rounded)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.55)
+            Text(value.range + (value.filtered ? " · " + L("已筛选") : "")).font(.system(size: 10)).foregroundStyle(.secondary)
+            HStack(spacing: 12) {
+                Text(compactTokens(value.usage.total) + " tokens")
+                Text(String(value.turns) + " " + L("任务轮次"))
+                Text(String(value.models) + " " + L("模型"))
+            }.font(.system(size: 10, weight: .medium)).lineLimit(1)
+        }
+    }
+    private var heatmap: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(L("近 30 天")).font(.system(size: 11, weight: .semibold))
+                Spacer()
+                Text(String(value.activeDays) + "/30 " + L("活跃天数")).font(.system(size: 9)).foregroundStyle(.secondary)
+            }
+            HStack(spacing: 3) {
+                ForEach(0..<columns, id: \.self) { column in activityColumn(column) }
+                Spacer(minLength: 4)
+                VStack(alignment: .trailing, spacing: 5) {
+                    Text(LedgerPricing.display(value.monthlyCost)).font(.system(size: 18, weight: .semibold, design: .rounded)).lineLimit(1).minimumScaleFactor(0.5)
+                    Text("USD").font(.system(size: 8)).foregroundStyle(.secondary)
+                    Text(compactTokens(value.monthlyUsage.total) + " tokens").font(.system(size: 9)).foregroundStyle(.secondary)
                 }
             }
-            Text(L("API 成本估算，非实际账单") + " · " + value.priceDate + (value.warning ? " · " + L("部分日志不可读") : "") + (value.cost.unpricedTokens > 0 || value.monthlyCost.unpricedTokens > 0 ? " · " + L("含未计价用量") : ""))
-                .font(.system(size: 7)).foregroundStyle(.secondary).lineLimit(2)
-        }.padding(22).frame(width: 360, height: 480).background(Color(nsColor: .windowBackgroundColor))
+            if let first = value.days.first, let last = value.days.last {
+                Text(dayLabel(first.date) + " — " + dayLabel(last.date) + " · " + value.timezone).font(.system(size: 8)).foregroundStyle(.secondary).lineLimit(1)
+            }
+        }.padding(12).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
+    }
+    private func activityColumn(_ column: Int) -> some View {
+        VStack(spacing: 3) {
+            ForEach(0..<7) { row in
+                RoundedRectangle(cornerRadius: 3).fill(cellColor(column * 7 + row - offset)).frame(width: 13, height: 13)
+            }
+        }
+    }
+    private func cellColor(_ index: Int) -> Color {
+        guard value.days.indices.contains(index) else { return .clear }
+        return greens[value.days[index].intensity(peak: peak)]
+    }
+    private var footer: some View {
+        HStack(spacing: 10) {
+            if let qr = ShareImages.qr() {
+                Image(nsImage: qr).interpolation(.none).resizable().frame(width: 49, height: 49).padding(5).background(.white).clipShape(RoundedRectangle(cornerRadius: 6))
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                Text(L("扫码下载 · Mac / Windows")).font(.system(size: 10, weight: .semibold))
+                Text("zhangligong0826.github.io/codex-ledger").font(.system(size: 7)).lineLimit(1)
+                Text(L("本地统计 · MIT 开源")).font(.system(size: 8)).foregroundStyle(.secondary)
+            }
+        }
     }
     private func dayLabel(_ date: Date) -> String {
         let formatter = DateFormatter(); formatter.locale = Locale(identifier: "en_US_POSIX"); formatter.dateFormat = "MM/dd"
@@ -102,7 +130,7 @@ struct ShareCardView: View {
     }
 }
 
-struct SharePreviewView: View {
+@MainActor struct SharePreviewView: View {
     let preview: SharePreview
     let language: String
     let close: () -> Void
@@ -149,7 +177,7 @@ struct SharePreviewView: View {
     }
 }
 
-struct LedgerShareMenu: View {
+@MainActor struct LedgerShareMenu: View {
     @ObservedObject var store: LedgerStore
     let overview: Bool
     var body: some View {
