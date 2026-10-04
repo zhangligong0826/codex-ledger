@@ -238,7 +238,15 @@ struct SharePreview: Identifiable {
         let query = overview ? "" : search
         let unassigned = !overview && unassignedOnly
         let listedGoalIDs = Set(filteredGoals.map(\.id))
-        let selected = overview ? snapshot.tasks : goalList ? snapshot.tasks.filter { task in goalBook.owner(task).map { listedGoalIDs.contains($0) } ?? false } : filteredTasks
+        let projectList = !overview && page == .projects && projectID == nil && chatID == nil
+        let chatList = !overview && chatID == nil && !goalList && (page == .conversations || projectID != nil || goalID != nil)
+        let listedProjectIDs = Set(filteredProjects.map(\.id)), listedChatIDs = Set(filteredConversations.map(\.id))
+        let selected: [LedgerTask]
+        if overview { selected = snapshot.tasks }
+        else if goalList { selected = snapshot.tasks.filter { task in goalBook.owner(task).map { listedGoalIDs.contains($0) } ?? false } }
+        else if projectList { selected = filteredProjects.flatMap(\.tasks) }
+        else if chatList { selected = filteredConversations.flatMap(\.tasks) }
+        else { selected = filteredTasks }
         let chosenGoal = goalID.flatMap { id in goals.first { $0.id == id } }
         let kind = chatID != nil ? "对话用量" : goalID != nil ? "目标花费" : projectID != nil ? "项目用量" : goalList ? "目标账本" : "用量总览"
         let title = chatID != nil ? conversation?.title ?? L(kind) : chosenGoal?.goal.name ?? project?.name ?? L(kind)
@@ -255,6 +263,8 @@ struct SharePreview: Identifiable {
                 if unassigned && goalBook.owner(task) != nil { return false }
                 if let projectID, task.projectID != projectID { return false }
                 if let chatID, task.sessionID != chatID { return false }
+                if projectList { return query.isEmpty || listedProjectIDs.contains(task.projectID) }
+                if chatList { return query.isEmpty || listedChatIDs.contains(task.sessionID) }
                 if let category, task.category != category { return false }
                 if let model, !task.models.contains(model) { return false }
                 return query.isEmpty || [task.title, task.projectName, task.projectPath, task.workingDirectory, task.sessionID, task.models.joined(separator: " ")].contains { $0.localizedCaseInsensitiveContains(query) }
@@ -278,6 +288,16 @@ struct SharePreview: Identifiable {
     }
     func exportCSV(models modelMode: Bool? = nil, turns: Bool = false) {
         guard rangeReady, !busy, !dataUnavailable else { return }
+        let (contents, kind) = csvExport(models: modelMode, turns: turns)
+        let panel = NSSavePanel(); panel.allowedContentTypes = [.commaSeparatedText]
+        panel.nameFieldStringValue = "Codex-\(kind)-\(L(scope.rawValue))-\(Date().formatted(.iso8601.year().month().day().dateSeparator(.dash))).csv"
+        presentFilePanel(panel) { [weak self] response in
+            guard response == .OK, let url = panel.url else { return }
+            do { try contents.write(to: url, atomically: true, encoding: .utf8) }
+            catch { self?.errorMessage = L("导出失败：\(error.localizedDescription)") }
+        }
+    }
+    func csvExport(models modelMode: Bool? = nil, turns: Bool = false) -> (String, String) {
         let contents: String, kind: String
         let names = Dictionary(uniqueKeysWithValues: goalBook.goals.map { ($0.id, $0.name) })
         let goalNames = Dictionary(uniqueKeysWithValues: snapshot.tasks.compactMap { task -> (String, String)? in
@@ -286,9 +306,11 @@ struct SharePreview: Identifiable {
         if let modelMode {
             contents = modelMode ? LedgerCSV.renderModels(snapshot.modelUsage, translate: L) : LedgerCSV.render(snapshot.tasks, goalNames: goalNames, translate: L); kind = modelMode ? "Models" : "Tasks"
         } else if page == .goals && conversation == nil {
-            contents = turns ? LedgerCSV.render(filteredTasks, goalNames: goalNames, translate: L) : LedgerCSV.renderGoals(selectedGoalID == nil ? filteredGoals : goal.map { [$0] } ?? [], scope: L(scope.rawValue), lifetimeReady: goalAmountsReady, translate: L); kind = turns ? "Goal-Turns" : "Goals"
+            let selectedGoals = selectedGoalID == nil ? filteredGoals : goalBook.summaries(current: filteredConversations.flatMap(\.tasks), lifetime: lifetime.tasks).filter { $0.id == selectedGoalID }
+            contents = turns ? LedgerCSV.render(filteredTasks, goalNames: goalNames, translate: L) : LedgerCSV.renderGoals(selectedGoals, scope: L(scope.rawValue), lifetimeReady: goalAmountsReady, translate: L); kind = turns ? "Goal-Turns" : "Goals"
         } else if let chat = conversation {
-            contents = turns ? LedgerCSV.render(filteredTasks, goalNames: goalNames, translate: L) : LedgerCSV.renderConversations([chat], projectPath: project?.path, usageScope: selectedGoalID == nil ? nil : L("仅当前目标"), translate: L); kind = turns ? "Tasks" : "Conversations"
+            let filteredChat = LedgerAnalytics.conversations(filteredTasks, titles: [chat.id: chat.title], projectSets: [chat.id: chat.projectIDs])
+            contents = turns ? LedgerCSV.render(filteredTasks, goalNames: goalNames, translate: L) : LedgerCSV.renderConversations(filteredChat, projectPath: project?.path, usageScope: selectedGoalID == nil ? nil : L("仅当前目标"), translate: L); kind = turns ? "Tasks" : "Conversations"
         } else if page == .projects && selectedProjectID == nil {
             contents = LedgerCSV.renderProjects(filteredProjects, translate: L); kind = "Projects"
         } else if page == .conversations || selectedProjectID != nil {
@@ -296,13 +318,7 @@ struct SharePreview: Identifiable {
         } else if page == .models {
             contents = LedgerCSV.renderModels(filteredModels, translate: L); kind = "Models"
         } else { contents = LedgerCSV.render(filteredTasks, goalNames: goalNames, translate: L); kind = "Tasks" }
-        let panel = NSSavePanel(); panel.allowedContentTypes = [.commaSeparatedText]
-        panel.nameFieldStringValue = "Codex-\(kind)-\(L(scope.rawValue))-\(Date().formatted(.iso8601.year().month().day().dateSeparator(.dash))).csv"
-        presentFilePanel(panel) { [weak self] response in
-            guard response == .OK, let url = panel.url else { return }
-            do { try contents.write(to: url, atomically: true, encoding: .utf8) }
-            catch { self?.errorMessage = L("导出失败：\(error.localizedDescription)") }
-        }
+        return (contents, kind)
     }
     private func presentFilePanel(_ panel: NSSavePanel, completion: @escaping (NSApplication.ModalResponse) -> Void) {
         if let window = prepareFilePanel?() { panel.beginSheetModal(for: window, completionHandler: completion) }

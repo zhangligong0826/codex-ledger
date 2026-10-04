@@ -28,7 +28,7 @@ public static class Program {
             tray=new Forms.NotifyIcon{Icon=System.Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath!)??System.Drawing.SystemIcons.Application,Text="Codex Ledger",Visible=true};
             var menu=new Forms.ContextMenuStrip();menu.Items.Add("Codex Ledger",null,(_,_)=>window.ShowOverview());menu.Items.Add(state.T("打开工作账本"),null,(_,_)=>window.ShowDashboard());menu.Items.Add(state.T("退出 Codex Ledger"),null,(_,_)=>app.Shutdown());tray.ContextMenuStrip=menu;
             tray.MouseClick+=(_,e)=>{if(e.Button==Forms.MouseButtons.Left)window.ShowOverview();};
-            state.Updated+=()=>{var c=state.Today.Cost;tray.Text=("Codex Ledger · "+state.T(c.Money)+" USD")[..Math.Min(63,("Codex Ledger · "+state.T(c.Money)+" USD").Length)];};
+            state.Updated+=()=>{menu.Items[1].Text=state.T("打开工作账本");menu.Items[2].Text=state.T("退出 Codex Ledger");var c=state.Today.Cost;tray.Text=("Codex Ledger · "+state.T(c.Money)+" USD")[..Math.Min(63,("Codex Ledger · "+state.T(c.Money)+" USD").Length)];};
             var timer=new DispatcherTimer{Interval=TimeSpan.FromSeconds(30)};timer.Tick+=async(_,_)=>await state.Refresh();timer.Start();
             await state.Refresh();if(args.Contains("--show-dashboard"))window.ShowDashboard();
         };
@@ -68,7 +68,7 @@ public sealed class LedgerState {
         var rows=input??Current.Turns;if(overview)return rows;
         return rows.Where(t=>(GoalID==null||Book.Owner(t)==GoalID)&&(ProjectID==null||t.Project.ID==ProjectID)&&(ChatID==null||t.SessionID==ChatID)&&(!UnassignedOnly||Book.Owner(t)==null)&&(Page!="goals"||GoalID!=null||UnassignedOnly||Book.Owner(t)!=null)).ToArray();
     }
-    public IReadOnlyList<LedgerTurn> Filter(IReadOnlyList<LedgerTurn> rows)=>rows.Where(t=>(Category==null||Category==t.Category)&&(Model==null||t.Models.Contains(Model))&&(Search.Length==0||new[]{t.Title,t.WorkingDirectory,t.Project.Name,t.Project.Path,t.SessionID,string.Join(" ",t.Models)}.Any(x=>x.Contains(Search,StringComparison.OrdinalIgnoreCase)))).ToArray();
+    public IReadOnlyList<LedgerTurn> Filter(IReadOnlyList<LedgerTurn> rows)=>rows.Where(t=>(Category==null||Category==t.Category)&&(Model==null||t.Models.Contains(Model))&&(Search.Length==0||new[]{t.Title,t.WorkingDirectory,t.Project.Name,t.Project.Path,t.SessionID,ChatTitle(t.SessionID),string.Join(" ",t.Models)}.Any(x=>x.Contains(Search,StringComparison.OrdinalIgnoreCase)))).ToArray();
     public string ChatTitle(string id)=>Titles.GetValueOrDefault(id)??Lifetime.Turns.Where(t=>t.SessionID==id).OrderBy(t=>t.Date).FirstOrDefault()?.Title??T("未记录用户请求");
     public string Kind(bool overview=false)=>overview?"用量总览":ChatID!=null?"对话用量":GoalID!=null?"目标花费":ProjectID!=null?"项目用量":Page=="goals"?"目标账本":"用量总览";
     public string Title=>ChatID!=null?ChatTitle(ChatID):GoalID!=null?Book.Goals.FirstOrDefault(g=>g.ID==GoalID)?.Name??T("目标账本"):ProjectID!=null?Lifetime.Turns.FirstOrDefault(t=>t.Project.ID==ProjectID)?.Project.Name??T("项目"):T(Page switch{"projects"=>"项目","conversations"=>"对话","tasks"=>"全部任务","models"=>"模型用量","settings"=>"设置",_=>"目标账本"});

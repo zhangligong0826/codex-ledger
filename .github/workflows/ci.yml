@@ -20,10 +20,6 @@ jobs:
         with:
           persist-credentials: false
       - name: Accounting tests
-        env:
-          # Apple's Vision engine aborts in the Intel runner's GPU-less VM even
-          # with usesCPUOnly; QR/OCR run on Apple Silicon and the development Mac.
-          CODEX_LEDGER_SKIP_VISION: ${{ matrix.runner == 'macos-15-intel' && '1' || '0' }}
         run: zsh test.sh
       - name: Build native app
         env:

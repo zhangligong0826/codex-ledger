@@ -37,6 +37,10 @@ jobs:
         shell: pwsh
         run: |
           $dir = "$env:RUNNER_TEMP/ledger-installed"
+          $dataDir = Join-Path $env:LOCALAPPDATA 'CodexLedger'
+          New-Item -ItemType Directory -Force $dataDir | Out-Null
+          $sentinel = Join-Path $dataDir 'ci-preserve-user-data.txt'
+          'ledger-user-data' | Set-Content $sentinel
           $installer = 'dist/Codex-Ledger-1.2.0-beta.1-Windows-win-x64-Setup.exe'
           1..2 | ForEach-Object {
             $p = Start-Process $installer -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=$dir" -Wait -PassThru
@@ -48,8 +52,17 @@ jobs:
           if ($p.ExitCode -ne 0) { throw 'Installed diagnostic failed' }
           $data = Get-Content "$env:RUNNER_TEMP/diagnostic.json" -Raw | ConvertFrom-Json
           if ($data.total -ne 0 -or $data.dailyUsage.Count -ne 30) { throw 'Empty-source diagnostic failed' }
+          $portable = "$env:RUNNER_TEMP/ledger-portable"
+          Expand-Archive 'dist/Codex-Ledger-1.2.0-beta.1-Windows-win-x64-Portable.zip' $portable
+          foreach ($file in @('coreclr.dll', 'hostpolicy.dll', 'CodexLedger.exe', 'licenses')) {
+            if (-not (Test-Path "$portable/$file")) { throw "Missing self-contained file: $file" }
+          }
+          $env:DOTNET_ROOT = "$env:RUNNER_TEMP/no-global-dotnet"
+          $p = Start-Process "$portable/CodexLedger.exe" -ArgumentList '--diagnose', '--scope=all' -Wait -PassThru -RedirectStandardOutput "$env:RUNNER_TEMP/portable-diagnostic.json"
+          if ($p.ExitCode -ne 0) { throw 'Portable self-contained diagnostic failed' }
           $p = Start-Process "$dir/unins000.exe" -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -Wait -PassThru
           if ($p.ExitCode -ne 0 -or (Test-Path "$dir/CodexLedger.exe")) { throw 'Uninstall failed' }
+          if ((Get-Content $sentinel -Raw).Trim() -ne 'ledger-user-data') { throw 'User data was not preserved' }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:

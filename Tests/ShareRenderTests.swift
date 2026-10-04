@@ -20,6 +20,26 @@ import Vision
         precondition(value.monthlyUsage == value.usage && value.monthlyCost == value.cost, "Same monthly scope must reconcile")
         store.navigate(.tasks); store.scope = .today
         precondition(value.range == L(DateScope.month.rawValue), "Frozen range survives navigation")
+        // Public project summaries use the same listed projects as CSV, rather
+        // than matching hidden turn titles when the project list is empty.
+        store.openProject(project); store.scope = .today
+        snapshot = nil; store.makeShareCard()
+        let monthDeadline = Date().addingTimeInterval(15)
+        while snapshot == nil && Date() < monthDeadline { RunLoop.main.run(until: Date().addingTimeInterval(0.02)) }
+        precondition(snapshot?.monthlyUsage == value.monthlyUsage, "Project heatmap includes month conversations absent today")
+        store.navigate(.projects); store.scope = .month; store.search = "nonexistent-project"
+        snapshot = nil; store.makeShareCard()
+        let projectDeadline = Date().addingTimeInterval(15)
+        while snapshot == nil && Date() < projectDeadline { RunLoop.main.run(until: Date().addingTimeInterval(0.02)) }
+        precondition(snapshot?.usage.total == 0 && snapshot?.monthlyUsage.total == 0, "Empty project search shares no hidden turns")
+        precondition(store.csvExport().0.split(separator: "\n").count == 1, "Empty project CSV has only its header")
+        store.clearFilters(); store.openProject(project)
+        let chat = store.filteredConversations.first!
+        store.openConversation(chat); store.search = "nonexistent-turn"
+        snapshot = nil; store.makeShareCard()
+        let filteredDeadline = Date().addingTimeInterval(15)
+        while snapshot == nil && Date() < filteredDeadline { RunLoop.main.run(until: Date().addingTimeInterval(0.02)) }
+        precondition(snapshot?.usage.total == 0 && store.csvExport().0.split(separator: "\n").count == 1, "Filtered chat CSV and share agree")
         print("Generating install QR"); fflush(stdout)
         precondition(ShareImages.qr() != nil, "Install QR must be generated")
         print("Install QR generated; rendering card"); fflush(stdout)

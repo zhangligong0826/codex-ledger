@@ -49,7 +49,13 @@ import UniformTypeIdentifiers
     let language: String
     private func T(_ key: String) -> String { language == "en" ? LedgerText.english[key] ?? key : key }
     private var peak: Int64 { value.days.map { $0.usage.total }.max() ?? 0 }
-    private var offset: Int { value.days.first.map { (Calendar.current.component(.weekday, from: $0.date) + 6) % 7 } ?? 0 }
+    private var offset: Int {
+        var calendar = Calendar.current; calendar.timeZone = TimeZone(identifier: value.timezone) ?? .current
+        return value.days.first.map { (calendar.component(.weekday, from: $0.date) + 6) % 7 } ?? 0
+    }
+    private func money(_ cost: CostEstimate) -> String {
+        cost.hasEstimate ? LedgerPricing.money(cost.totalUSD) + (cost.unpricedTokens > 0 ? " *" : "") : T("单价未知")
+    }
     private var columns: Int { (offset + value.days.count + 6) / 7 }
     private let greens = [Color.primary.opacity(0.07), Color(red: 0.61, green: 0.82, blue: 0.66), Color(red: 0.29, green: 0.66, blue: 0.43), Color(red: 0.15, green: 0.49, blue: 0.31), Color(red: 0.07, green: 0.34, blue: 0.23)]
     private var note: String {
@@ -64,7 +70,7 @@ import UniformTypeIdentifiers
             Text(title).font(.system(size: 23, weight: .bold)).lineLimit(2).frame(height: 57, alignment: .topLeading)
             amount
             if let cost = value.completionCost {
-                HStack { Text(T("完成时")); Spacer(); Text(LedgerPricing.display(cost) + " USD").bold() }.font(.system(size: 10))
+                HStack { Text(T("完成时")); Spacer(); Text(money(cost) + " USD").bold() }.font(.system(size: 10))
             }
             heatmap
             Spacer(minLength: 0)
@@ -82,7 +88,7 @@ import UniformTypeIdentifiers
     private var amount: some View {
         VStack(alignment: .leading, spacing: 5) {
             Text(T("预估 API 花费") + " · USD").font(.system(size: 10)).foregroundStyle(.secondary)
-            Text(LedgerPricing.display(value.cost)).font(.system(size: 38, weight: .semibold, design: .rounded)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.55)
+            Text(money(value.cost)).font(.system(size: 38, weight: .semibold, design: .rounded)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.35)
             Text(value.range + (value.filtered ? " · " + T("已筛选") : "")).font(.system(size: 10)).foregroundStyle(.secondary)
             HStack(spacing: 12) {
                 Text(compactTokens(value.usage.total) + " tokens")
@@ -102,7 +108,7 @@ import UniformTypeIdentifiers
                 ForEach(0..<columns, id: \.self) { column in activityColumn(column) }
                 Spacer(minLength: 4)
                 VStack(alignment: .trailing, spacing: 5) {
-                    Text(LedgerPricing.display(value.monthlyCost)).font(.system(size: 18, weight: .semibold, design: .rounded)).lineLimit(1).minimumScaleFactor(0.5)
+                    Text(money(value.monthlyCost)).font(.system(size: 18, weight: .semibold, design: .rounded)).lineLimit(1).minimumScaleFactor(0.35)
                     Text("USD").font(.system(size: 8)).foregroundStyle(.secondary)
                     Text(compactTokens(value.monthlyUsage.total) + " tokens").font(.system(size: 9)).foregroundStyle(.secondary)
                 }
