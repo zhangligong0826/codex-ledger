@@ -29,6 +29,13 @@ import Foundation
         precondition(store.filteredConversations.count == 2)
         store.navigate(.projects); store.search = "no-match"; store.navigate(.models)
         precondition(store.search.isEmpty && store.selectedProjectID == nil && store.selectedConversationID == nil)
-        print("9/9 navigation and scope regression checks passed")
+        store.loadDemo()
+        precondition(store.activityReady && store.activity.count == 30, "activity is independently ready with a full month")
+        store.snapshot = LedgerSnapshot(warnings: ["Fixture read error"])
+        store.activity = LedgerDemo.activity(empty: true)
+        precondition(store.dataUnavailable, "failed data must not be presented as known zero usage")
+        store.snapshot = LedgerSnapshot()
+        precondition(!store.dataUnavailable, "a valid empty source remains known zero usage")
+        print("12/12 navigation, scope and activity-state regression checks passed")
     }
 }

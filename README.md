@@ -41,7 +41,7 @@ Uninstalling does not remove your Codex logs. Keep one installed copy; when movi
 - Native layered Liquid Glass app icon on supported systems, with a compatible icon for older macOS.
 - Local rule-based classification with manual corrections. Open the original Codex chat or linked local files.
 
-The overview is at most **340 × 460 points**, with a fixed header/footer and scrollable body. Right-click the menu bar icon for actions. ⌘L toggles the overview while active; Escape dismisses it; ⌘Q quits. The overview supports ⌘R to refresh.
+The overview is at most **300 × 500 points**, with a fixed header/footer and scrollable body. Right-click the menu bar icon for actions. ⌘L toggles the overview while active; Escape dismisses it; ⌘Q quits. The overview supports ⌘R to refresh.
 
 ## Accounting and privacy
 
@@ -55,7 +55,7 @@ Costs use bundled [official OpenAI Standard API prices](https://developers.opena
 
 The app makes **no network requests**, uses no API key, calls no model, reads no login credentials, and uploads no chats. Local conversation titles are read from compatible SQLite metadata in read-only mode; missing or incompatible metadata falls back to log requests. Repository discovery reads small `.git` and `commondir` pointer files using the [documented Git layout](https://git-scm.com/docs/gitrepository-layout), without running Git, hooks or configuration. End users need no developer tools. The scan index stays in memory; preferences and classification overrides use local UserDefaults. CSV is written only on export and may contain private titles and paths.
 
-The default source is `CODEX_HOME` or `~/.codex`; change it in Settings. Every 30 seconds, only changed files are reparsed. Longer ranges expand scanning on demand. Repository lookup and aggregation use a serial background queue. All time covers all readable logs still retained on this Mac.
+The default source is `CODEX_HOME` or `~/.codex`; change it in Settings. The overview always includes a 30-day activity heatmap with daily token tooltips, a monthly total and active-day count. Four green levels are relative to the largest day; blank calendar padding is not a recorded day. This month stays visible independently of the selected ledger range. Every 30 seconds, only changed files are reparsed. At least the last 30 days are scanned; All time expands scanning on demand. Repository lookup and aggregation use a serial background queue. All time covers all readable logs still retained on this Mac.
 
 ## Build and contribute
 

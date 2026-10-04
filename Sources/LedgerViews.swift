@@ -66,48 +66,53 @@ struct CostDetails: View {
 struct StatusPopover: View {
     @ObservedObject var store: LedgerStore
     var openDashboard: () -> Void
+    private var showTotals: Bool { store.rangeReady && !store.dataUnavailable }
     var body: some View {
         VStack(spacing: 0) {
-            VStack(spacing: 9) {
-                HStack {
-                    Text(L("用量总览")).font(.system(size: 14, weight: .semibold))
-                    Image(systemName: "info.circle").foregroundStyle(.secondary).help(L("本机 Codex 日志 · 输入 + 输出（包含缓存）"))
-                    Spacer()
-                    Button { store.exportCSV(models: false) } label: { Image(systemName: "square.and.arrow.up") }.buttonStyle(.plain).disabled(store.busy || !store.rangeReady).help(L("导出 CSV"))
-                }
+            HStack(spacing: 8) {
+                Text(L("用量总览")).font(.system(size: 14, weight: .semibold))
+                    .help(L("本机 Codex 日志 · 输入 + 输出（包含缓存）"))
+                Spacer(minLength: 0)
                 Picker(L("时间"), selection: $store.scope) { ForEach(DateScope.allCases) { Text(L($0.rawValue)).tag($0) } }
-                    .pickerStyle(.menu).labelsHidden().controlSize(.small).frame(maxWidth: .infinity, alignment: .leading)
-            }.padding(.horizontal, 14).padding(.top, 12).padding(.bottom, 8)
+                    .pickerStyle(.menu).labelsHidden().controlSize(.small).frame(width: 108)
+                Button { store.exportCSV(models: false) } label: { Image(systemName: "square.and.arrow.up") }
+                    .buttonStyle(.plain).disabled(store.busy || !store.rangeReady || store.dataUnavailable).help(L("导出 CSV"))
+            }.padding(.horizontal, 12).padding(.top, 12).padding(.bottom, 8)
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
-                    VStack(spacing: 8) {
+                    VStack(spacing: 6) {
                         HStack(spacing: 12) {
-                            UsageRing(totals: store.categoryTotals, total: store.snapshot.usage.total, pending: !store.rangeReady)
-                            VStack(alignment: .leading, spacing: 8) {
-                                ForEach(store.categoryTotals.prefix(3), id: \.0) { c, value, _ in legend(L(c.title), value, c.color) }
-                                if store.categoryTotals.count > 3 { legend(L("其他用途"), store.categoryTotals.dropFirst(3).reduce(0) { $0 + $1.1 }, .gray) }
-                                if store.categoryTotals.isEmpty { Text(!store.rangeReady ? L("正在整理日志…") : L("暂时没有用量记录")).font(.system(size: 11)).foregroundStyle(.secondary) }
-                            }.frame(maxWidth: .infinity)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(showTotals ? compactTokens(store.snapshot.usage.total) : store.dataUnavailable ? "—" : "…")
+                                    .font(.system(size: 28, weight: .semibold, design: .rounded)).monospacedDigit()
+                                    .lineLimit(1).minimumScaleFactor(0.7)
+                                Text("tokens · " + (showTotals ? L("\(store.snapshot.tasks.count) 个任务") : "—"))
+                                    .font(.system(size: 10)).foregroundStyle(.secondary)
+                            }
+                            Spacer(minLength: 0)
+                            UsageRing(totals: store.categoryTotals, total: store.snapshot.usage.total, pending: !showTotals, size: 48, showTotal: false)
                         }
                         HStack {
-                            Text(store.rangeReady ? L("\(store.snapshot.tasks.count) 个任务") : "—")
+                            Text(showTotals ? L("输入") + " " + compactTokens(store.snapshot.usage.input) : "—")
                             Spacer()
-                            Text(store.rangeReady ? L("输入 \(compactTokens(store.snapshot.usage.input)) · 输出 \(compactTokens(store.snapshot.usage.output))") : "—")
+                            Text(showTotals ? L("输出") + " " + compactTokens(store.snapshot.usage.output) : "—")
                         }.font(.system(size: 10)).foregroundStyle(.secondary)
-                        CostMetric(cost: store.snapshot.cost, pending: !store.rangeReady)
+                        CostMetric(cost: store.snapshot.cost, pending: !showTotals)
+                            .help(store.dataUnavailable ? L("需要检查数据目录") : L("预估金额，不是订阅账单。"))
                     }.padding(10).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
+                    MonthlyActivityView(store: store)
                     HStack {
                         Label(L("任务用途"), systemImage: "chart.bar.xaxis").font(.system(size: 11, weight: .semibold))
                         Spacer()
-                        Button(store.rangeReady ? L("\(store.knownModelCount) 个模型") : "—") { store.navigate(.models); openDashboard() }.buttonStyle(.plain).font(.system(size: 10)).foregroundStyle(.secondary)
+                        Button(showTotals ? L("\(store.knownModelCount) 个模型") : "—") { store.navigate(.models); openDashboard() }.buttonStyle(.plain).font(.system(size: 10)).foregroundStyle(.secondary)
                     }
-                    VStack(spacing: 9) {
+                    VStack(spacing: 8) {
                         if !store.rangeReady {
                             HStack { ProgressView().controlSize(.small); Text(L("正在整理日志，请稍候")).font(.system(size: 11)) }.padding(.vertical, 10)
                         } else if store.snapshot.tasks.isEmpty {
                             Text(store.snapshot.warnings.isEmpty ? L("这个日期范围内暂无记录") : L("需要检查数据目录")).font(.system(size: 11)).foregroundStyle(.secondary).padding(.vertical, 10)
                         }
-                        ForEach(store.categoryTotals.prefix(5), id: \.0) { c, value, count in
+                        ForEach(store.categoryTotals.prefix(3), id: \.0) { c, value, count in
                             Button { store.navigate(.tasks); store.categoryFilter = c; openDashboard() } label: {
                                 VStack(spacing: 4) {
                                     HStack {
@@ -148,17 +153,88 @@ struct StatusPopover: View {
                     Button(L("对话")) { store.navigate(.conversations); openDashboard() }
                     Button(L("全部工作")) { store.navigate(.tasks); openDashboard() }
                     Button(L("查看模型用量")) { store.navigate(.models); openDashboard() }
-                    Button(L("导出 CSV…")) { store.exportCSV(models: false) }.disabled(store.busy || !store.rangeReady)
+                    Button(L("导出 CSV…")) { store.exportCSV(models: false) }.disabled(store.busy || !store.rangeReady || store.dataUnavailable)
                     Button(L("设置…")) { store.navigate(.settings); openDashboard() }
                     Picker(L("语言"), selection: Binding(get: { store.language }, set: store.setLanguage)) { Text("English").tag("en"); Text("简体中文").tag("zh") }
                     Picker(L("外观"), selection: Binding(get: { store.appearance }, set: store.setAppearance)) { Text(L("跟随系统")).tag("system"); Text(L("浅色")).tag("light"); Text(L("深色")).tag("dark") }
                     Divider(); Button(L("退出 Codex Ledger")) { NSApp.terminate(nil) }
                 }.menuStyle(.borderlessButton).fixedSize().font(.system(size: 11))
             }.padding(.horizontal, 12).padding(.vertical, 9)
-        }.id(store.language).frame(width: 340).frame(maxHeight: .infinity).background(Color(nsColor: .windowBackgroundColor))
+        }.id(store.language).frame(width: LedgerStore.panelWidth).frame(maxHeight: .infinity).background(Color(nsColor: .windowBackgroundColor))
     }
-    func legend(_ title: String, _ value: Int64, _ color: Color) -> some View {
-        HStack(spacing: 5) { Circle().fill(color).frame(width: 7, height: 7); Text(title).lineLimit(1); Spacer(minLength: 3); Text(compactTokens(value)).foregroundStyle(.secondary).monospacedDigit() }.font(.system(size: 10))
+
+}
+
+struct MonthlyActivityView: View {
+    @ObservedObject var store: LedgerStore
+    private var days: [DailyUsage] { store.activity.isEmpty ? LedgerDemo.activity(empty: true) : store.activity }
+    private var offset: Int { Calendar.current.component(.weekday, from: days[0].date) - 1 }
+    private var columns: Int { (offset + days.count + 6) / 7 }
+    private var failed: Bool { store.activityReady && store.activity.allSatisfy { $0.responses == 0 } && !store.snapshot.warnings.isEmpty }
+    private var pending: Bool { !store.activityReady }
+    private var peak: Int64 { days.map { $0.usage.total }.max() ?? 0 }
+    private var total: Int64 { days.reduce(0) { $0 + $1.usage.total } }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button { store.scope = .month } label: {
+                HStack {
+                    Text(L("近 30 天")).font(.system(size: 11, weight: .semibold))
+                    Spacer()
+                    Image(systemName: "chevron.right").font(.system(size: 8)).foregroundStyle(.secondary)
+                }.contentShape(Rectangle())
+            }.buttonStyle(.plain)
+            HStack(spacing: 12) {
+                HStack(alignment: .top, spacing: 4) {
+                    VStack(spacing: 3) {
+                        ForEach(0..<7) { row in
+                            Text(weekday(row)).font(.system(size: 8)).foregroundStyle(.secondary)
+                                .frame(width: 18, height: 10)
+                        }
+                    }.accessibilityHidden(true)
+                    ForEach(0..<columns, id: \.self) { column in
+                        VStack(spacing: 3) {
+                            ForEach(0..<7) { row in
+                                let index = column * 7 + row - offset
+                                if days.indices.contains(index) {
+                                    let day = days[index]
+                                    RoundedRectangle(cornerRadius: 2)
+                                        .fill(color(pending || failed ? 0 : day.intensity(peak: peak)))
+                                        .frame(width: 10, height: 10)
+                                        .help(tooltip(day)).accessibilityLabel(tooltip(day))
+                                } else { Color.clear.frame(width: 10, height: 10).accessibilityHidden(true) }
+                            }
+                        }
+                    }
+                }
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(pending ? "…" : failed ? "—" : compactTokens(total))
+                        .font(.system(size: 20, weight: .semibold, design: .rounded)).monospacedDigit()
+                        .lineLimit(1).minimumScaleFactor(0.7)
+                    Text(failed ? L("需要检查数据目录") : L("30 天合计"))
+                        .font(.system(size: 9)).foregroundStyle(.secondary)
+                    Text(pending || failed ? "—" : String(format: L("活跃 %d/30 天"), days.filter { $0.usage.total > 0 }.count))
+                        .font(.system(size: 9)).foregroundStyle(.secondary)
+                    HStack(spacing: 3) {
+                        Text(L("少"))
+                        ForEach(0..<5) { level in RoundedRectangle(cornerRadius: 1.5).fill(color(level)).frame(width: 7, height: 7) }
+                        Text(L("多"))
+                    }.font(.system(size: 8)).foregroundStyle(.secondary).accessibilityHidden(true)
+                }.frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }.padding(10).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
+            .help(L("颜色深浅表示每天的 token 用量，以近 30 天单日峰值分为四档；悬停查看日期和具体用量。"))
+    }
+    private func color(_ level: Int) -> Color {
+        level == 0 ? Color.primary.opacity(0.065) : Color(red: 0.15, green: 0.63, blue: 0.34).opacity(0.25 + Double(level) * 0.1875)
+    }
+    private func weekday(_ row: Int) -> String {
+        guard [1, 3, 5].contains(row) else { return "" }
+        let formatter = DateFormatter(); formatter.locale = Locale(identifier: store.language == "en" ? "en_US" : "zh_CN")
+        return formatter.veryShortWeekdaySymbols[row]
+    }
+    private func tooltip(_ day: DailyUsage) -> String {
+        let date = day.date.formatted(Date.FormatStyle().year().month().day().locale(Locale(identifier: store.language == "en" ? "en_US" : "zh_CN")))
+        return date + " · " + (pending ? L("正在整理日志…") : failed ? L("需要检查数据目录") : exactTokens(day.usage.total) + " tokens · " + L("\(day.responses) 次响应"))
     }
 }
 
@@ -175,7 +251,7 @@ struct DashboardView: View {
                     }.frame(maxWidth: .infinity, alignment: .leading)
                     if !store.showSettings {
                         Picker(L("时间"), selection: $store.scope) { ForEach(DateScope.allCases) { Text(L($0.rawValue)).tag($0) } }.pickerStyle(.menu).labelsHidden().frame(width: 135)
-                        Button { store.exportCSV() } label: { Image(systemName: "square.and.arrow.up") }.help(L("导出 CSV")).disabled(store.busy || !store.rangeReady)
+                        Button { store.exportCSV() } label: { Image(systemName: "square.and.arrow.up") }.help(L("导出 CSV")).disabled(store.busy || !store.rangeReady || store.dataUnavailable)
                     }
                     Button { store.refresh() } label: { Image(systemName: "arrow.clockwise") }.help(L("刷新")).disabled(store.busy).keyboardShortcut("r", modifiers: .command)
                 }
@@ -188,7 +264,7 @@ struct DashboardView: View {
                             if store.conversation?.spansProjects == true { Label(L("涉及多个项目"), systemImage: "folder.badge.questionmark").font(.system(size: 11)).foregroundStyle(.secondary) }
                             Spacer()
                             if let chat = store.conversation {
-                                Button(L("导出轮次 CSV")) { store.exportCSV(turns: true) }.disabled(store.busy || !store.rangeReady)
+                                Button(L("导出轮次 CSV")) { store.exportCSV(turns: true) }.disabled(store.busy || !store.rangeReady || store.dataUnavailable)
                                 Button(L("打开聊天")) { store.openChat(id: chat.id) }
                             }
                         }

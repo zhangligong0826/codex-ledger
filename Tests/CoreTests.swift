@@ -143,6 +143,7 @@ import Foundation
         expect(L("近 30 天") == "近 30 天" && L("10 个任务") == "10 个任务", "Chinese language restores static and dynamic labels")
         try analyticsChecks(folder: folder)
         try pricingChecks(folder: folder)
+        try activityChecks(folder: folder)
         print("\(checks - failures)/\(checks) accounting and classification checks passed")
         if failures > 0 { exit(1) }
     }

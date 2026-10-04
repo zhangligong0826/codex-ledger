@@ -85,6 +85,8 @@ struct UsageRing: View {
     var totals: [(WorkCategory, Int64, Int)]
     var total: Int64
     var pending = false
+    var size: CGFloat = 88
+    var showTotal = true
     var body: some View {
         ZStack {
             Circle().stroke(Color.primary.opacity(0.06), lineWidth: 12)
@@ -94,11 +96,11 @@ struct UsageRing: View {
                 Circle().trim(from: start + min(0.003, (end - start) / 4), to: end - min(0.003, (end - start) / 4))
                     .stroke(entry.0.color, style: StrokeStyle(lineWidth: 12, lineCap: .butt)).rotationEffect(.degrees(-90))
             }
-            VStack(spacing: 2) {
+            if showTotal { VStack(spacing: 2) {
                 Text(pending ? "…" : compactTokens(total)).font(.system(size: 18, weight: .semibold, design: .rounded)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.6)
                 Text("tokens").font(.system(size: 9)).foregroundStyle(.secondary)
-            }.padding(14)
-        }.frame(width: 88, height: 88).padding(6)
+            }.padding(14) }
+        }.frame(width: size, height: size).padding(6)
             .accessibilityLabel(pending ? L("正在汇总用量…") : L("总用量 \(exactTokens(total)) token"))
     }
 }
@@ -235,7 +237,7 @@ final class UsagePanel: NSPanel {
     }
     func showUsagePanel() {
         if usagePanel == nil {
-            let panel = UsagePanel(contentRect: NSRect(x: 0, y: 0, width: 340, height: 460), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+            let panel = UsagePanel(contentRect: NSRect(x: 0, y: 0, width: LedgerStore.panelWidth, height: 500), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
             panel.title = L("Codex Ledger · 用量总览")
             panel.isOpaque = false; panel.backgroundColor = .clear; panel.hasShadow = true
             panel.level = .floating; panel.isReleasedWhenClosed = false
@@ -252,8 +254,9 @@ final class UsagePanel: NSPanel {
         let visible = screen?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
         let anchor = button.window?.convertToScreen(button.convert(button.bounds, to: nil)) ?? NSRect(x: visible.maxX - 20, y: visible.maxY, width: 20, height: 24)
         let height = min(store.panelHeight, visible.height - 16)
-        panel.setContentSize(NSSize(width: 340, height: height))
-        panel.setFrameOrigin(NSPoint(x: max(visible.minX + 8, min(anchor.maxX - 340, visible.maxX - 348)), y: max(visible.minY + 8, min(anchor.minY - height - 8, visible.maxY - height - 8))))
+        let width = min(LedgerStore.panelWidth, visible.width - 16)
+        panel.setContentSize(NSSize(width: width, height: height))
+        panel.setFrameOrigin(NSPoint(x: max(visible.minX + 8, min(anchor.maxX - width, visible.maxX - width - 8)), y: max(visible.minY + 8, min(anchor.minY - height - 8, visible.maxY - height - 8))))
     }
     @objc func openDashboardAction() { openDashboard() }
     @objc func settingsAction() { store.navigate(.settings); openDashboard() }
@@ -307,8 +310,9 @@ final class UsagePanel: NSPanel {
         let argument = CommandLine.arguments.first { $0.hasPrefix("--scope=") }.map { String($0.dropFirst(8)) } ?? "today"
         guard let scope = scopes[argument] else { fputs("Scope must be today, yesterday, 7d, 30d, or all\n", stderr); exit(2) }
         let scanner = LedgerScanner(); let start = Date()
-        let result = scanner.scan(root: URL(fileURLWithPath: root), days: scope.days == Int.max ? nil : scope.days)
-        let range = scope.interval(now: Date(), calendar: .current)
+        let now = Date()
+        let result = scanner.scan(root: URL(fileURLWithPath: root), now: now, days: scope.days == Int.max ? nil : max(30, scope.days))
+        let range = scope.interval(now: now, calendar: .current)
         let snap = scanner.snapshot(logs: result.logs, start: range.start, end: range.end, root: root, warnings: result.warnings)
         let enriched = LedgerAnalytics.enrich(snap, resolver: ProjectResolver(), titles: ConversationMetadata.titles(root: URL(fileURLWithPath: root)))
         var output: [String: Any] = ["files": snap.files, "tasks": snap.tasks.count, "projects": enriched.projects.count, "conversations": enriched.conversations.count, "projectTotal": enriched.projects.reduce(Int64(0)) { $0 + $1.usage.total }, "conversationTotal": enriched.conversations.reduce(Int64(0)) { $0 + $1.usage.total }, "input": snap.usage.input, "cached": snap.usage.cached, "output": snap.usage.output, "reasoning": snap.usage.reasoning, "total": snap.usage.total, "categories": Dictionary(WorkCategory.allCases.map { c in (c.rawValue, snap.tasks.filter { $0.category == c }.reduce(Int64(0)) { $0 + $1.usage.total }) }, uniquingKeysWith: { a, _ in a }), "warnings": snap.warnings, "malformed": snap.malformed, "seconds": Date().timeIntervalSince(start)]
@@ -320,6 +324,11 @@ final class UsagePanel: NSPanel {
         output["conversationEstimatedAPIUSD"] = LedgerPricing.decimalString(enriched.conversations.reduce(CostEstimate()) { $0 + $1.cost }.totalUSD)
         output["modelEstimatedAPIUSD"] = LedgerPricing.decimalString(snap.modelUsage.reduce(CostEstimate()) { $0 + $1.cost }.totalUSD)
         output["pricingDate"] = LedgerPricing.verifiedDate
+        let activity = scanner.dailyUsage(logs: result.logs, now: now, calendar: .current)
+        let formatter = DateFormatter(); formatter.locale = Locale(identifier: "en_US_POSIX"); formatter.dateFormat = "yyyy-MM-dd"
+        output["activityTotal"] = activity.reduce(Int64(0)) { $0 + $1.usage.total }
+        output["activeDays"] = activity.filter { $0.usage.total > 0 }.count
+        output["dailyUsage"] = activity.map { ["date": formatter.string(from: $0.date), "total": $0.usage.total, "responses": $0.responses] as [String: Any] }
         if let data = try? JSONSerialization.data(withJSONObject: output, options: [.prettyPrinted, .sortedKeys]), let text = String(data: data, encoding: .utf8) { print(text) }
     }
 }

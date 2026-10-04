@@ -2,6 +2,8 @@
 
 ## 1.1.0
 
+- Slimmer 300-point overview with a calendar-aligned 30-day token heatmap, exact daily tooltips, monthly totals and active days. Response-level deduplication and local calendar boundaries match the ledger.
+
 - Offline Standard API cost estimates in USD across all scopes, per-response long-context pricing, cache-aware accounting, unpriced coverage and matching CSV fields.
 
 - Project → conversation → task-turn accounting, repository/worktree grouping, cross-project scopes, local titles, search and CSV summaries.

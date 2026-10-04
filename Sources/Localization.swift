@@ -4,6 +4,8 @@ import Foundation
 enum LedgerText {
     static var language = "en"
     static let english: [String: String] = [
+        "30 天合计": "30-day total", "活跃 %d/30 天": "%d/30 active days", "少": "Less", "多": "More",
+        "颜色深浅表示每天的 token 用量，以近 30 天单日峰值分为四档；悬停查看日期和具体用量。": "Color shows daily tokens in four levels relative to the 30-day peak. Hover for the date and exact usage.",
         "预估 API 花费": "Estimated API cost", "单价未知": "Unpriced", "查看金额计算依据": "View cost calculation",
         "预估金额，不是订阅账单。": "Estimated cost, not a subscription bill.", "输入（不含缓存）": "Uncached input", "缓存输入": "Cached input",
         "未计价用量": "Unpriced tokens", "上下文未确认": "Context unverified", "价格核对日期": "Prices verified",

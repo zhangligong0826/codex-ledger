@@ -13,6 +13,8 @@ enum LedgerPreferences {
 @MainActor final class LedgerStore: ObservableObject {
     @Published var today = LedgerSnapshot()
     @Published var todayIsReady = false
+    @Published var activity: [DailyUsage] = []
+    @Published var activityReady = false
     @Published var snapshot = LedgerSnapshot()
     @Published var scope: DateScope = .today { didSet {
         guard scope != oldValue else { return }
@@ -71,7 +73,9 @@ enum LedgerPreferences {
     var logsAreEmpty: Bool { logs.isEmpty && !LedgerPreferences.isDemo }
     var knownModelCount: Int { snapshot.modelUsage.filter { $0.model != "未知模型" }.count }
     var categoryTotals: [(WorkCategory, Int64, Int)] { LedgerAnalytics.categories(snapshot.tasks) }
-    var panelHeight: CGFloat { !rangeReady ? 380 : max(360, min(460, 325 + CGFloat(min(categoryTotals.count, 5)) * 27)) }
+    var dataUnavailable: Bool { rangeReady && snapshot.tasks.isEmpty && activityReady && activity.allSatisfy { $0.responses == 0 } && !snapshot.warnings.isEmpty }
+    static let panelWidth: CGFloat = 300
+    var panelHeight: CGFloat { !rangeReady || dataUnavailable ? 480 : categoryTotals.isEmpty ? 460 : max(480, 440 + CGFloat(min(categoryTotals.count, 3)) * 20) }
     var scanStatus: String {
         if isLoading { return scanTotal > 0 ? L("正在扫描 \(scanCompleted)/\(scanTotal) 份日志") : L("正在查找日志…") }
         return isComputing ? L("正在汇总用量…") : ""
@@ -89,7 +93,7 @@ enum LedgerPreferences {
         if LedgerPreferences.isDemo { loadDemo(); return }
         guard !isLoading else { return }
         isLoading = true; scanCompleted = 0; scanTotal = 0; didUpdate?()
-        let path = sourcePath, scanner = self.scanner, begin = Date(), days = max(loadedDays, scope.days)
+        let path = sourcePath, scanner = self.scanner, begin = Date(), days = max(30, max(loadedDays, scope.days))
         queue.async {
             let result = scanner.scan(root: URL(fileURLWithPath: path), days: days == Int.max ? nil : days) { completed, total in
                 if completed % 10 == 0 || completed == total { DispatchQueue.main.async {
@@ -123,9 +127,11 @@ enum LedgerPreferences {
             let today = LedgerAnalytics.enrich(scanner.snapshot(logs: logs, start: todayRange.start, end: todayRange.end, root: path, overrides: overrides, warnings: warnings), resolver: resolver, titles: titles)
             let range = requestedScope.interval(now: now, calendar: calendar)
             let current = requestedScope == .today ? today : LedgerAnalytics.enrich(scanner.snapshot(logs: logs, start: range.start, end: range.end, root: path, overrides: overrides, warnings: warnings), resolver: resolver, titles: titles)
+            let activity = scanner.dailyUsage(logs: logs, now: now, calendar: calendar)
             DispatchQueue.main.async {
                 guard self.computeVersion == version, self.sourcePath == path, self.scope == requestedScope else { return }
                 self.today = today; self.todayIsReady = true; self.snapshot = current; self.renderedScope = requestedScope; self.isComputing = false; self.didUpdate?()
+                self.activity = activity; self.activityReady = true
             }
         }
     }
@@ -180,7 +186,7 @@ enum LedgerPreferences {
         presentFilePanel(panel) { [weak self] response in
             guard let self, response == .OK, let url = panel.url else { return }
             self.sourcePath = url.path; self.defaults.set(url.path, forKey: "sourcePath"); self.logs = []; self.loadedDays = 0
-            self.computeVersion += 1; self.isComputing = false; self.renderedScope = nil; self.snapshot = LedgerSnapshot(); self.today = LedgerSnapshot(); self.todayIsReady = false; self.didUpdate?(); self.refresh()
+            self.computeVersion += 1; self.isComputing = false; self.renderedScope = nil; self.snapshot = LedgerSnapshot(); self.today = LedgerSnapshot(); self.todayIsReady = false; self.activity = []; self.activityReady = false; self.didUpdate?(); self.refresh()
         }
     }
     func setLogin(_ enabled: Bool) {
@@ -223,7 +229,9 @@ enum LedgerPreferences {
         let scenario = ProcessInfo.processInfo.environment["CODEX_LEDGER_DEMO_STATE"] ?? (Bundle.main.object(forInfoDictionaryKey: "LedgerDemoState") as? String) ?? "ready"
         loadedDays = Int.max; renderedScope = scenario == "loading" ? nil : scope; isComputing = false; isLoading = scenario == "loading"
         scanCompleted = 12; scanTotal = 80
-        snapshot = LedgerDemo.snapshot(empty: scenario != "ready", error: scenario == "error")
-        today = snapshot; todayIsReady = scenario != "loading"; didUpdate?()
+        snapshot = LedgerDemo.snapshot(empty: scenario != "ready", error: scenario == "error", scope: scope)
+        today = LedgerDemo.snapshot(empty: scenario != "ready", error: scenario == "error"); todayIsReady = scenario != "loading"
+        activity = LedgerDemo.activity(empty: scenario != "ready")
+        activityReady = scenario != "loading"; didUpdate?()
     }
 }

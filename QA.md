@@ -4,7 +4,7 @@ Version 1.1.0 · 2026-10-04
 
 ## Automated checks
 
-- 142 accounting/classification/analytics/pricing checks and 9 navigation/scope regressions pass locally.
+- 152 accounting/classification/analytics/pricing/activity checks and 12 navigation/scope/activity-state regressions pass locally.
 - Fixtures cover multi-turn and multi-chat projects, identical folder names, repository subdirectories, symlink aliases, linked worktrees, cross-project conversations, missing/deleted directories, duplicate/archived copies, per-response date boundaries, legacy counters and parent/subagent attribution.
 - Additional file-created repository/worktree fixtures cover relative and absolute Git pointers, subdirectories, missing metadata, malformed/oversized pointers and invalid common directories. Production discovery runs no Git executable and cannot invoke the macOS developer tools installer.
 - Price checks cover cached/reasoning subsets, exact Decimal arithmetic, short/long thresholds, legacy context uncertainty, unknown aliases, duplicate/date/subagent records and project/conversation/model/CSV equality. All 25 bundled rates were compared against official Standard prices and the documented snapshot alias.
@@ -42,3 +42,10 @@ Fixed clipping in the overview, loading counters, uneven summary cards, English 
 ## Limits
 
 Login startup has not been tested by logging out/rebooting. Physical multi-display arrangements and an independent other-Mac Gatekeeper first launch have not been tested. Releases are ad-hoc signed, not Apple notarized. The cost build passed all three native CI jobs on macOS 14 Apple Silicon, current Apple Silicon and macOS 15 Intel ([run 37184143925](https://github.com/zhangligong0826/codex-ledger/actions/runs/37184143925)). Headless native tests do not validate Intel UI appearance. Native icon support depends on the OS; older systems use flattened compatibility representations.
+
+## Slim overview and activity grid
+
+- The overview is 300 points wide and at most 500 points tall, with three category rows and a visible project/conversation action. Header and footer stay fixed.
+- Daily accounting shares response deduplication with the ledger. Checks cover exactly 30 calendar days, start/end boundaries, duplicates/archived copies, cross-day tasks, child calls, absent days, monthly subset equality and the 23-hour daylight-saving day in Los Angeles. Demo monthly totals equal its heatmap.
+- Offscreen native view rendering with synthetic data was inspected in English/Chinese, Light/Dark, loading, empty and error states. These are generated previews, not screenshots of the installed app. Failed reads use unknown values rather than zero in the overview.
+- Hover interactions, click-through and installed window placement remain pending native app operation authorization.

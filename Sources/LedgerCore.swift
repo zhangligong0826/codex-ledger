@@ -17,6 +17,17 @@ enum DateScope: String, CaseIterable, Identifiable {
     }
 }
 
+struct DailyUsage: Identifiable {
+    var date: Date
+    var usage = TokenUsage()
+    var responses = 0
+    var id: Date { date }
+    func intensity(peak: Int64) -> Int {
+        guard usage.total > 0 else { return 0 }
+        return max(1, Int(ceil(min(1, Double(usage.total) / Double(max(1, peak))) * 4)))
+    }
+}
+
 enum WorkCategory: String, Codable, CaseIterable, Identifiable {
     case question, research, slides, document, spreadsheet, coding, image, mixed, background, unknown
     var id: String { rawValue }
@@ -471,7 +482,6 @@ final class LedgerScanner: @unchecked Sendable {
     }
     func snapshot(logs: [ParsedLog], start: Date, end: Date, root: String = "", overrides: [String: String] = [:], warnings: [String] = []) -> LedgerSnapshot {
         var result = LedgerSnapshot(files: logs.count, malformed: logs.reduce(0) { $0 + $1.malformed }, warnings: warnings, sourcePath: root)
-        var seen = Set<String>()
         var groups: [String: [UsageSample]] = [:]
         var infos: [String: TurnInfo] = [:], internalSessions = Set<String>()
         for log in logs {
@@ -482,17 +492,14 @@ final class LedgerScanner: @unchecked Sendable {
         let roots = Dictionary(infos.values.filter { !internalSessions.contains($0.sessionID) }.map { ($0.id, $0.sessionID + ":" + $0.id) }, uniquingKeysWith: { a, _ in a })
         var subagentIDs = Set<String>()
         var models: [String: ModelUsage] = [:]
-        for log in logs.sorted(by: { $0.path < $1.path }) {
-            for sample in log.samples where sample.date >= start && sample.date < end {
-                guard seen.insert(sample.id).inserted else { continue }
-                var key = sample.sessionID + ":" + sample.turnID
-                if internalSessions.contains(sample.sessionID), let rootKey = roots[sample.rootTurnID] { key = rootKey; subagentIDs.insert(sample.id) }
-                groups[key, default: []].append(sample)
-                var model = models[sample.model] ?? ModelUsage(model: sample.model)
-                model.usage = model.usage + sample.usage; model.responses += 1; model.taskIDs.insert(key)
-                model.cost = model.cost + sample.cost
-                models[sample.model] = model
-            }
+        forEachUniqueSample(logs: logs, start: start, end: end) { sample in
+            var key = sample.sessionID + ":" + sample.turnID
+            if internalSessions.contains(sample.sessionID), let rootKey = roots[sample.rootTurnID] { key = rootKey; subagentIDs.insert(sample.id) }
+            groups[key, default: []].append(sample)
+            var model = models[sample.model] ?? ModelUsage(model: sample.model)
+            model.usage = model.usage + sample.usage; model.responses += 1; model.taskIDs.insert(key)
+            model.cost = model.cost + sample.cost
+            models[sample.model] = model
         }
         for (key, samples) in groups {
             guard let first = samples.min(by: { $0.date < $1.date }) else { continue }
@@ -510,6 +517,27 @@ final class LedgerScanner: @unchecked Sendable {
         result.tasks.sort { $0.usage.total > $1.usage.total }
         result.modelUsage = models.values.sorted { $0.usage.total > $1.usage.total }
         return result
+    }
+    // The heatmap and ledger use the same response deduplication and date boundaries.
+    private func forEachUniqueSample(logs: [ParsedLog], start: Date, end: Date, body: (UsageSample) -> Void) {
+        var seen = Set<String>()
+        for log in logs.sorted(by: { $0.path < $1.path }) {
+            for sample in log.samples where sample.date >= start && sample.date < end {
+                if seen.insert(sample.id).inserted { body(sample) }
+            }
+        }
+    }
+    func dailyUsage(logs: [ParsedLog], now: Date = Date(), calendar: Calendar? = nil) -> [DailyUsage] {
+        let calendar = calendar ?? self.calendar
+        let range = DateScope.month.interval(now: now, calendar: calendar)
+        var days = (0..<30).map { DailyUsage(date: calendar.date(byAdding: .day, value: $0, to: range.start)!) }
+        let indexes = Dictionary(uniqueKeysWithValues: days.enumerated().map { ($0.element.date, $0.offset) })
+        forEachUniqueSample(logs: logs, start: range.start, end: range.end) { sample in
+            guard let index = indexes[calendar.startOfDay(for: sample.date)] else { return }
+            days[index].usage = days[index].usage + sample.usage
+            days[index].responses += 1
+        }
+        return days
     }
 }
 

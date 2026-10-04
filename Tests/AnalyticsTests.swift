@@ -148,3 +148,45 @@ extension CoreTests {
         LedgerText.language = "zh"
     }
 }
+
+extension CoreTests {
+    static func activityChecks(folder: URL) throws {
+        let parser = LogParser(), scanner = LedgerScanner(timezone: TimeZone(secondsFromGMT: 0)!)
+        let now = parser.date("2026-10-04T12:00:00Z")!
+        let file = folder.appendingPathComponent("activity.jsonl")
+        var text = line("session_meta", ["id": "activity-parent"])
+            + line("event_msg", ["type": "task_started", "turn_id": "activity-turn"])
+        func call(_ id: String, _ input: Int, _ timestamp: String) -> String {
+            line("token_usage_record", ["thread_id": "activity-parent", "turn_id": "activity-turn", "response_id": id, "usage": usage(input, input / 10, cached: input / 2)], timestamp)
+        }
+        text += call("before", 900, "2026-09-04T23:59:59Z")
+        text += call("first", 10, "2026-09-05T00:00:00Z")
+        text += call("before-midnight", 100, "2026-09-30T23:59:59Z")
+        text += call("after-midnight", 200, "2026-10-01T00:00:00Z")
+        text += call("today", 30, "2026-10-04T11:00:00Z")
+        text += call("future", 900, "2026-10-05T00:00:00Z")
+        try text.write(to: file, atomically: true, encoding: .utf8)
+        let parent = try parser.parse(url: file)
+        let childText = line("session_meta", ["id": "activity-child", "source": ["subagent": ["other": "worker"]]])
+            + line("event_msg", ["type": "task_started", "turn_id": "child", "root_turn_id": "activity-turn"])
+            + line("token_usage_record", ["thread_id": "activity-child", "turn_id": "child", "root_turn_id": "activity-turn", "response_id": "child-call", "usage": usage(50, 5)], "2026-10-01T01:00:00Z")
+        try childText.write(to: file, atomically: true, encoding: .utf8)
+        let child = try parser.parse(url: file)
+        let logs = [parent, parent, child, child], days = scanner.dailyUsage(logs: logs, now: now)
+        expect(days.count == 30 && days.first!.date == parser.date("2026-09-05T00:00:00Z")!, "activity covers exactly 30 local calendar days including today")
+        expect(days.first!.usage.total == 11 && days.last!.usage.total == 33, "activity includes the start boundary and excludes future dates")
+        expect(days[25].usage.total == 110 && days[26].usage.total == 275, "cross-day turns and child responses are assigned to their actual response dates")
+        expect(days.reduce(0) { $0 + $1.responses } == 5, "duplicate and archived activity copies are counted once")
+        expect(days.filter { $0.usage.total == 0 }.count == 26, "missing days remain visible as zero-usage cells")
+        let month = scanner.snapshot(logs: logs, start: days.first!.date, end: parser.date("2026-10-05T00:00:00Z")!)
+        expect(days.reduce(TokenUsage()) { $0 + $1.usage } == month.usage, "daily token totals and cached/output subsets equal the monthly ledger")
+        expect(DailyUsage(date: now).intensity(peak: 100) == 0 && days[26].intensity(peak: 275) == 4 && days.first!.intensity(peak: 275) == 1, "zero, low and peak activity have distinct bounded color levels")
+        expect(scanner.dailyUsage(logs: [], now: now).allSatisfy { $0.usage.total == 0 && $0.responses == 0 }, "empty sources still have 30 dated cells")
+        var la = Calendar(identifier: .gregorian); la.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        let dstNow = parser.date("2026-03-09T18:00:00Z")!
+        try (line("session_meta", ["id": "activity-parent"]) + call("dst-before", 10, "2026-03-08T07:30:00Z") + call("dst-after", 20, "2026-03-08T10:30:00Z")).write(to: file, atomically: true, encoding: .utf8)
+        let dst = scanner.dailyUsage(logs: [try parser.parse(url: file)], now: dstNow, calendar: la)
+        expect(dst[27].usage.total == 11 && dst[28].usage.total == 22 && dst[29].date.timeIntervalSince(dst[28].date) == 23 * 3600, "activity respects local midnight and the 23-hour daylight-saving day")
+        expect(LedgerDemo.activity().reduce(TokenUsage()) { $0 + $1.usage } == LedgerDemo.snapshot(scope: .month).usage, "demo heatmap and monthly overview agree")
+    }
+}
