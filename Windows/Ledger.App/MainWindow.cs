@@ -30,7 +30,7 @@ public sealed class MainWindow : Window {
         var header=new DockPanel();header.Children.Add(Text(overview?State.T("用量总览"):State.Title,overview?18:24,true));
         var actions=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right};
         if(State.Page!="settings"||overview){var scopes=new ComboBox{Width=overview?106:130,Margin=new Thickness(3),ItemsSource=new[]{State.T("今天"),State.T("昨天"),State.T("近 7 天"),State.T("近 30 天"),State.T("历史累计")},SelectedIndex=(int)State.Scope};scopes.SelectionChanged+=(_,_)=>{if(scopes.SelectedIndex>=0)State.SetScope((DateScope)scopes.SelectedIndex);};actions.Children.Add(scopes);actions.Children.Add(ShareMenu());}
-        actions.Children.Add(Button("刷新",async()=>await State.Refresh(),!State.Busy));DockPanel.SetDock(actions,Dock.Right);header.Children.Insert(0,actions);if(overview){body.Children.Add(Text(State.T("用量总览"),18,true));actions.HorizontalAlignment=HorizontalAlignment.Left;body.Children.Add(actions);}else body.Children.Add(header);
+        actions.Children.Add(Button("刷新",async()=>await State.Refresh(),!State.Busy));DockPanel.SetDock(actions,Dock.Right);header.Children.Insert(0,actions);if(overview){header.Children.Remove(actions);body.Children.Add(Text(State.T("用量总览"),18,true));actions.HorizontalAlignment=HorizontalAlignment.Left;body.Children.Add(actions);}else body.Children.Add(header);
         if(State.Busy||!State.Ready)body.Children.Add(Text(State.T("正在整理日志，请稍候"),12));
         if(State.Error.Length>0)body.Children.Add(Text(State.T(State.Error),12));
         if(State.Current.Warnings.Count>0){body.Children.Add(Text(State.T("部分日志不可读，账本内可查看详情"),12));if(!overview)foreach(var warning in State.Current.Warnings)body.Children.Add(Text(State.T(warning),10));}
