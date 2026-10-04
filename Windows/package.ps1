@@ -8,6 +8,9 @@ if (-not $iscc) { throw 'Install Inno Setup from https://jrsoftware.org/isdl.php
 foreach ($rid in @('win-x64','win-arm64')) {
   dotnet publish "$PSScriptRoot/Ledger.App" -c Release -r $rid --self-contained true -o "$out/$rid" -p:Version=$Version
   if ($LASTEXITCODE -ne 0) { throw "Publish failed: $rid" }
+  Copy-Item "$root/LICENSE" "$out/$rid/LICENSE.txt"
+  Copy-Item "$root/THIRD-PARTY.md" "$out/$rid/THIRD-PARTY.md"
+  Copy-Item "$root/distribution/licenses" "$out/$rid/licenses" -Recurse -Force
   Compress-Archive -Path "$out/$rid/*" -DestinationPath "$out/Codex-Ledger-$Version-Windows-$rid-Portable.zip" -Force
   & $iscc.FullName "/DRID=$rid" "/DVersion=$Version" "$PSScriptRoot/setup.iss"
   if ($LASTEXITCODE -ne 0) { throw "Installer failed: $rid" }

@@ -24,13 +24,13 @@ public sealed class MainWindow : Window {
     public void ShowOverview(){overview=true;MinWidth=300;MinHeight=400;Width=320;Height=Math.Min(620,SystemParameters.WorkArea.Height-20);ShowInTaskbar=false;ResizeMode=ResizeMode.NoResize;Left=SystemParameters.WorkArea.Right-Width-12;Top=SystemParameters.WorkArea.Bottom-Height-12;Render();Show();Activate();}
     public void ShowDashboard(){overview=false;MinWidth=880;MinHeight=580;Width=Math.Min(1080,SystemParameters.WorkArea.Width-32);Height=Math.Min(720,SystemParameters.WorkArea.Height-32);ShowInTaskbar=true;ResizeMode=ResizeMode.CanResize;Left=(SystemParameters.WorkArea.Width-Width)/2;Top=(SystemParameters.WorkArea.Height-Height)/2;Render();Show();Activate();}
     public void Render(){
-        if(!Dispatcher.CheckAccess()){Dispatcher.Invoke(Render);return;}Background=BG;Foreground=FG;root.Children.Clear();Title="Codex Ledger · "+(overview?State.T("用量总览"):State.Title);
+        if(!Dispatcher.CheckAccess()){Dispatcher.Invoke(Render);return;}Background=BG;root.Background=BG;Foreground=FG;root.Children.Clear();Title="Codex Ledger · "+(overview?State.T("用量总览"):State.Title);
         var body=Stack();
         if(!overview){var nav=Stack();nav.Width=160;nav.Background=CardBG;foreach(var (page,label) in new[]{("goals","目标账本"),("projects","项目"),("conversations","对话"),("tasks","全部任务"),("models","模型用量"),("settings","设置")})nav.Children.Add(Button(label,()=>State.Navigate(page)));nav.Children.Add(Text("Codex Ledger\n1.2.0-beta.1",10));DockPanel.SetDock(nav,Dock.Left);root.Children.Add(nav);}
         var header=new DockPanel();header.Children.Add(Text(overview?State.T("用量总览"):State.Title,overview?18:24,true));
         var actions=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right};
         if(State.Page!="settings"||overview){var scopes=new ComboBox{Width=overview?106:130,Margin=new Thickness(3),ItemsSource=new[]{State.T("今天"),State.T("昨天"),State.T("近 7 天"),State.T("近 30 天"),State.T("历史累计")},SelectedIndex=(int)State.Scope};scopes.SelectionChanged+=(_,_)=>{if(scopes.SelectedIndex>=0)State.SetScope((DateScope)scopes.SelectedIndex);};actions.Children.Add(scopes);actions.Children.Add(ShareMenu());}
-        actions.Children.Add(Button("刷新",async()=>await State.Refresh(),!State.Busy));DockPanel.SetDock(actions,Dock.Right);header.Children.Insert(0,actions);body.Children.Add(header);
+        actions.Children.Add(Button("刷新",async()=>await State.Refresh(),!State.Busy));DockPanel.SetDock(actions,Dock.Right);header.Children.Insert(0,actions);if(overview){body.Children.Add(Text(State.T("用量总览"),18,true));actions.HorizontalAlignment=HorizontalAlignment.Left;body.Children.Add(actions);}else body.Children.Add(header);
         if(State.Busy||!State.Ready)body.Children.Add(Text(State.T("正在整理日志，请稍候"),12));
         if(State.Error.Length>0)body.Children.Add(Text(State.T(State.Error),12));
         if(State.Current.Warnings.Count>0){body.Children.Add(Text(State.T("部分日志不可读，账本内可查看详情"),12));if(!overview)foreach(var warning in State.Current.Warnings)body.Children.Add(Text(State.T(warning),10));}
