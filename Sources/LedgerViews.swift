@@ -78,7 +78,7 @@ struct StatusPopover: View {
                 Button { store.exportCSV(models: false) } label: { Image(systemName: "square.and.arrow.up") }
                     .buttonStyle(.plain).disabled(store.busy || !store.rangeReady || store.dataUnavailable).help(L("导出 CSV"))
             }.padding(.horizontal, 12).padding(.top, 12).padding(.bottom, 8)
-            ScrollView {
+            ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 10) {
                     VStack(spacing: 6) {
                         HStack(spacing: 12) {

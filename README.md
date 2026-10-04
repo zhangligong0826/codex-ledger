@@ -41,7 +41,7 @@ Uninstalling does not remove your Codex logs. Keep one installed copy; when movi
 - Native layered Liquid Glass app icon on supported systems, with a compatible icon for older macOS.
 - Local rule-based classification with manual corrections. Open the original Codex chat or linked local files.
 
-The overview is at most **300 × 500 points**, with a fixed header/footer and scrollable body. Right-click the menu bar icon for actions. ⌘L toggles the overview while active; Escape dismisses it; ⌘Q quits. The overview supports ⌘R to refresh.
+The overview is at most **300 × 560 points**, with a fixed header/footer and scrollable body whose scroll indicators are hidden. Right-click the menu bar icon for actions. ⌘L toggles the overview while active; Escape dismisses it; ⌘Q quits. The overview supports ⌘R to refresh.
 
 ## Accounting and privacy
 

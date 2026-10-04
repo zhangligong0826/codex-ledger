@@ -75,7 +75,7 @@ enum LedgerPreferences {
     var categoryTotals: [(WorkCategory, Int64, Int)] { LedgerAnalytics.categories(snapshot.tasks) }
     var dataUnavailable: Bool { rangeReady && snapshot.tasks.isEmpty && activityReady && activity.allSatisfy { $0.responses == 0 } && !snapshot.warnings.isEmpty }
     static let panelWidth: CGFloat = 300
-    var panelHeight: CGFloat { !rangeReady || dataUnavailable ? 480 : categoryTotals.isEmpty ? 460 : max(480, 440 + CGFloat(min(categoryTotals.count, 3)) * 20) }
+    var panelHeight: CGFloat { !rangeReady || dataUnavailable ? 540 : categoryTotals.isEmpty ? 520 : max(540, 500 + CGFloat(min(categoryTotals.count, 3)) * 20) }
     var scanStatus: String {
         if isLoading { return scanTotal > 0 ? L("正在扫描 \(scanCompleted)/\(scanTotal) 份日志") : L("正在查找日志…") }
         return isComputing ? L("正在汇总用量…") : ""

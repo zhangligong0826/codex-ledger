@@ -237,7 +237,7 @@ final class UsagePanel: NSPanel {
     }
     func showUsagePanel() {
         if usagePanel == nil {
-            let panel = UsagePanel(contentRect: NSRect(x: 0, y: 0, width: LedgerStore.panelWidth, height: 500), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+            let panel = UsagePanel(contentRect: NSRect(x: 0, y: 0, width: LedgerStore.panelWidth, height: 560), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
             panel.title = L("Codex Ledger · 用量总览")
             panel.isOpaque = false; panel.backgroundColor = .clear; panel.hasShadow = true
             panel.level = .floating; panel.isReleasedWhenClosed = false
