@@ -52,6 +52,8 @@ enum LedgerText {
         "搜索目标、项目、对话或模型": "Search goals, projects, chats or models",
         "目标账本无法读取，原有数据已保留。": "The goal book could not be read. Existing data was preserved.",
         "目标账本无法保存。": "The goal book could not be saved.",
+        "30 天预估 · USD": "30-day estimate · USD",
+        "颜色深浅表示每天的 token 用量，以近 30 天单日峰值分为四档；悬停查看日期、预估金额和用量。": "Color shows daily tokens in four levels relative to the 30-day peak. Hover for the date, estimated cost and usage.",
         "30 天合计": "30-day total", "活跃 %d/30 天": "%d/30 active days", "少": "Less", "多": "More",
         "颜色深浅表示每天的 token 用量，以近 30 天单日峰值分为四档；悬停查看日期和具体用量。": "Color shows daily tokens in four levels relative to the 30-day peak. Hover for the date and exact usage.",
         "预估 API 花费": "Estimated API cost", "单价未知": "Unpriced", "查看金额计算依据": "View cost calculation",

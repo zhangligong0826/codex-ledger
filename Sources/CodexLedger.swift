@@ -332,7 +332,8 @@ final class UsagePanel: NSPanel {
         let formatter = DateFormatter(); formatter.locale = Locale(identifier: "en_US_POSIX"); formatter.dateFormat = "yyyy-MM-dd"
         output["activityTotal"] = activity.reduce(Int64(0)) { $0 + $1.usage.total }
         output["activeDays"] = activity.filter { $0.usage.total > 0 }.count
-        output["dailyUsage"] = activity.map { ["date": formatter.string(from: $0.date), "total": $0.usage.total, "responses": $0.responses] as [String: Any] }
+        output["activityEstimatedAPIUSD"] = LedgerPricing.decimalString(activity.reduce(CostEstimate()) { $0 + $1.cost }.totalUSD)
+        output["dailyUsage"] = activity.map { ["date": formatter.string(from: $0.date), "total": $0.usage.total, "responses": $0.responses, "estimatedAPIUSD": LedgerPricing.decimalString($0.cost.totalUSD), "pricedTokens": $0.cost.pricedTokens, "unpricedTokens": $0.cost.unpricedTokens] as [String: Any] }
         if let data = try? JSONSerialization.data(withJSONObject: output, options: [.prettyPrinted, .sortedKeys]), let text = String(data: data, encoding: .utf8) { print(text) }
     }
 }

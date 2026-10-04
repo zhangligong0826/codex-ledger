@@ -7,7 +7,7 @@ enum LedgerDemo {
         return (0..<30).map { index in
             let date = calendar.date(byAdding: .day, value: index, to: range.start)!
             let matches = tasks.filter { calendar.startOfDay(for: $0.date) == date }
-            return DailyUsage(date: date, usage: matches.reduce(TokenUsage()) { $0 + $1.usage }, responses: matches.reduce(0) { $0 + $1.responses })
+            return DailyUsage(date: date, usage: matches.reduce(TokenUsage()) { $0 + $1.usage }, responses: matches.reduce(0) { $0 + $1.responses }, cost: LedgerPricing.total(matches))
         }
     }
     static func snapshot(empty: Bool = false, error: Bool = false, scope: DateScope = .today) -> LedgerSnapshot {

@@ -66,6 +66,7 @@ struct CostDetails: View {
 struct StatusPopover: View {
     @ObservedObject var store: LedgerStore
     var openDashboard: () -> Void
+    @LedgerViewState private var showCostDetails = false
     private var showTotals: Bool { store.rangeReady && !store.dataUnavailable }
     var body: some View {
         VStack(spacing: 0) {
@@ -83,10 +84,19 @@ struct StatusPopover: View {
                     VStack(spacing: 6) {
                         HStack(spacing: 12) {
                             VStack(alignment: .leading, spacing: 3) {
-                                Text(showTotals ? compactTokens(store.snapshot.usage.total) : store.dataUnavailable ? "—" : "…")
-                                    .font(.system(size: 28, weight: .semibold, design: .rounded)).monospacedDigit()
-                                    .lineLimit(1).minimumScaleFactor(0.7)
-                                Text("tokens · " + (showTotals ? L("\(store.snapshot.tasks.count) 个任务") : "—"))
+                                HStack(spacing: 5) {
+                                    Text(L("预估 API 花费")).font(.system(size: 9)).foregroundStyle(.secondary)
+                                    Button { showCostDetails = true } label: { Image(systemName: "info.circle").font(.system(size: 9)).foregroundStyle(.secondary) }
+                                        .buttonStyle(.plain).disabled(!showTotals).help(L("查看金额计算依据"))
+                                        .popover(isPresented: $showCostDetails) { CostDetails(cost: store.snapshot.cost).padding(16).frame(width: 310) }
+                                }
+                                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                                    Text(showTotals ? LedgerPricing.display(store.snapshot.cost) : store.dataUnavailable ? "—" : "…")
+                                        .font(.system(size: 28, weight: .semibold, design: .rounded)).monospacedDigit()
+                                        .lineLimit(1).minimumScaleFactor(0.6)
+                                    Text("USD").font(.system(size: 9)).foregroundStyle(.secondary)
+                                }
+                                Text(showTotals ? compactTokens(store.snapshot.usage.total) + " tokens · " + L("\(store.snapshot.tasks.count) 个任务") : "—")
                                     .font(.system(size: 10)).foregroundStyle(.secondary)
                             }
                             Spacer(minLength: 0)
@@ -97,8 +107,7 @@ struct StatusPopover: View {
                             Spacer()
                             Text(showTotals ? L("输出") + " " + compactTokens(store.snapshot.usage.output) : "—")
                         }.font(.system(size: 10)).foregroundStyle(.secondary)
-                        CostMetric(cost: store.snapshot.cost, pending: !showTotals)
-                            .help(store.dataUnavailable ? L("需要检查数据目录") : L("预估金额，不是订阅账单。"))
+
                     }.padding(10).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
                     MonthlyActivityView(store: store)
                     HStack {
@@ -175,6 +184,7 @@ struct MonthlyActivityView: View {
     private var pending: Bool { !store.activityReady }
     private var peak: Int64 { days.map { $0.usage.total }.max() ?? 0 }
     private var total: Int64 { days.reduce(0) { $0 + $1.usage.total } }
+    private var cost: CostEstimate { days.reduce(CostEstimate()) { $0 + $1.cost } }
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Button { store.scope = .month } label: {
@@ -208,11 +218,13 @@ struct MonthlyActivityView: View {
                     }
                 }
                 VStack(alignment: .leading, spacing: 5) {
-                    Text(pending ? "…" : failed ? "—" : compactTokens(total))
+                    Text(pending ? "…" : failed ? "—" : LedgerPricing.display(cost))
                         .font(.system(size: 20, weight: .semibold, design: .rounded)).monospacedDigit()
                         .lineLimit(1).minimumScaleFactor(0.7)
-                    Text(failed ? L("需要检查数据目录") : L("30 天合计"))
+                    Text(failed ? L("需要检查数据目录") : L("30 天预估 · USD"))
                         .font(.system(size: 9)).foregroundStyle(.secondary)
+                    Text(pending || failed ? "—" : compactTokens(total) + " tokens")
+                        .font(.system(size: 9)).foregroundStyle(.secondary).lineLimit(1)
                     Text(pending || failed ? "—" : String(format: L("活跃 %d/30 天"), days.filter { $0.usage.total > 0 }.count))
                         .font(.system(size: 9)).foregroundStyle(.secondary)
                     HStack(spacing: 3) {
@@ -223,7 +235,7 @@ struct MonthlyActivityView: View {
                 }.frame(maxWidth: .infinity, alignment: .leading)
             }
         }.padding(10).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
-            .help(L("颜色深浅表示每天的 token 用量，以近 30 天单日峰值分为四档；悬停查看日期和具体用量。"))
+            .help(L("颜色深浅表示每天的 token 用量，以近 30 天单日峰值分为四档；悬停查看日期、预估金额和用量。"))
     }
     private func color(_ level: Int) -> Color {
         level == 0 ? Color.primary.opacity(0.065) : Color(red: 0.15, green: 0.63, blue: 0.34).opacity(0.25 + Double(level) * 0.1875)
@@ -235,7 +247,7 @@ struct MonthlyActivityView: View {
     }
     private func tooltip(_ day: DailyUsage) -> String {
         let date = day.date.formatted(Date.FormatStyle().year().month().day().locale(Locale(identifier: store.language == "en" ? "en_US" : "zh_CN")))
-        return date + " · " + (pending ? L("正在整理日志…") : failed ? L("需要检查数据目录") : exactTokens(day.usage.total) + " tokens · " + L("\(day.responses) 次响应"))
+        return date + " · " + (pending ? L("正在整理日志…") : failed ? L("需要检查数据目录") : LedgerPricing.display(day.cost) + " USD · " + exactTokens(day.usage.total) + " tokens · " + L("\(day.responses) 次响应"))
     }
 }
 

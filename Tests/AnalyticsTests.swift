@@ -157,7 +157,7 @@ extension CoreTests {
         var text = line("session_meta", ["id": "activity-parent"])
             + line("event_msg", ["type": "task_started", "turn_id": "activity-turn"])
         func call(_ id: String, _ input: Int, _ timestamp: String) -> String {
-            line("token_usage_record", ["thread_id": "activity-parent", "turn_id": "activity-turn", "response_id": id, "usage": usage(input, input / 10, cached: input / 2)], timestamp)
+            line("token_usage_record", ["thread_id": "activity-parent", "turn_id": "activity-turn", "response_id": id, "model": "gpt-5.5", "usage": usage(input, input / 10, cached: input / 2)], timestamp)
         }
         text += call("before", 900, "2026-09-04T23:59:59Z")
         text += call("first", 10, "2026-09-05T00:00:00Z")
@@ -169,7 +169,7 @@ extension CoreTests {
         let parent = try parser.parse(url: file)
         let childText = line("session_meta", ["id": "activity-child", "source": ["subagent": ["other": "worker"]]])
             + line("event_msg", ["type": "task_started", "turn_id": "child", "root_turn_id": "activity-turn"])
-            + line("token_usage_record", ["thread_id": "activity-child", "turn_id": "child", "root_turn_id": "activity-turn", "response_id": "child-call", "usage": usage(50, 5)], "2026-10-01T01:00:00Z")
+            + line("token_usage_record", ["thread_id": "activity-child", "turn_id": "child", "root_turn_id": "activity-turn", "response_id": "child-call", "model": "gpt-5.4-mini", "usage": usage(50, 5)], "2026-10-01T01:00:00Z")
         try childText.write(to: file, atomically: true, encoding: .utf8)
         let child = try parser.parse(url: file)
         let logs = [parent, parent, child, child], days = scanner.dailyUsage(logs: logs, now: now)
@@ -180,6 +180,16 @@ extension CoreTests {
         expect(days.filter { $0.usage.total == 0 }.count == 26, "missing days remain visible as zero-usage cells")
         let month = scanner.snapshot(logs: logs, start: days.first!.date, end: parser.date("2026-10-05T00:00:00Z")!)
         expect(days.reduce(TokenUsage()) { $0 + $1.usage } == month.usage, "daily token totals and cached/output subsets equal the monthly ledger")
+        expect(days.reduce(CostEstimate()) { $0 + $1.cost } == month.cost, "daily costs, priced coverage and cached/output components reconcile to the monthly ledger")
+        expect(days[26].cost.totalUSD > 0 && days[25].cost.totalUSD > 0, "cross-day and mixed-model child calls retain their own prices")
+        expect(days.filter { $0.responses == 0 }.allSatisfy { $0.cost == CostEstimate() }, "inactive days have a genuine zero cost")
+        var unpriced = parent; unpriced.samples = [parent.samples.first { $0.id == "today" }!]; unpriced.samples[0].model = "unpublished-model"
+        let unknownDay = scanner.dailyUsage(logs: [unpriced], now: now).last!
+        expect(!unknownDay.cost.hasEstimate && unknownDay.cost.unpricedTokens == unknownDay.usage.total, "unknown daily models are unpriced rather than zero dollars")
+        var longContext = unpriced; longContext.samples[0].model = "gpt-5.5"; longContext.samples[0].usage = TokenUsage(usage(300000, 1000, cached: 200000))
+        let longDay = scanner.dailyUsage(logs: [longContext, longContext], now: now).last!
+        let longSnapshot = scanner.snapshot(logs: [longContext], start: days.first!.date, end: parser.date("2026-10-05T00:00:00Z")!)
+        expect(longDay.cost == longSnapshot.cost && longDay.cost.pricedTokens == 301000, "daily long-context pricing is per response and still deduplicated")
         expect(DailyUsage(date: now).intensity(peak: 100) == 0 && days[26].intensity(peak: 275) == 4 && days.first!.intensity(peak: 275) == 1, "zero, low and peak activity have distinct bounded color levels")
         expect(scanner.dailyUsage(logs: [], now: now).allSatisfy { $0.usage.total == 0 && $0.responses == 0 }, "empty sources still have 30 dated cells")
         var la = Calendar(identifier: .gregorian); la.timeZone = TimeZone(identifier: "America/Los_Angeles")!
@@ -187,6 +197,7 @@ extension CoreTests {
         try (line("session_meta", ["id": "activity-parent"]) + call("dst-before", 10, "2026-03-08T07:30:00Z") + call("dst-after", 20, "2026-03-08T10:30:00Z")).write(to: file, atomically: true, encoding: .utf8)
         let dst = scanner.dailyUsage(logs: [try parser.parse(url: file)], now: dstNow, calendar: la)
         expect(dst[27].usage.total == 11 && dst[28].usage.total == 22 && dst[29].date.timeIntervalSince(dst[28].date) == 23 * 3600, "activity respects local midnight and the 23-hour daylight-saving day")
+        expect(LedgerDemo.activity().reduce(CostEstimate()) { $0 + $1.cost } == LedgerDemo.snapshot(scope: .month).cost, "demo heatmap money matches the monthly estimate")
         expect(LedgerDemo.activity().reduce(TokenUsage()) { $0 + $1.usage } == LedgerDemo.snapshot(scope: .month).usage, "demo heatmap and monthly overview agree")
     }
 }

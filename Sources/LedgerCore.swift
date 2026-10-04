@@ -21,6 +21,7 @@ struct DailyUsage: Identifiable {
     var date: Date
     var usage = TokenUsage()
     var responses = 0
+    var cost = CostEstimate()
     var id: Date { date }
     func intensity(peak: Int64) -> Int {
         guard usage.total > 0 else { return 0 }
@@ -538,6 +539,7 @@ final class LedgerScanner: @unchecked Sendable {
             guard let index = indexes[calendar.startOfDay(for: sample.date)] else { return }
             days[index].usage = days[index].usage + sample.usage
             days[index].responses += 1
+            days[index].cost = days[index].cost + sample.cost
         }
         return days
     }
