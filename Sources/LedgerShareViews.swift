@@ -65,18 +65,20 @@ import UniformTypeIdentifiers
         return parts.joined(separator: " · ")
     }
     var body: some View {
-        VStack(alignment: .leading, spacing: 13) {
-            brand
-            Text(title).font(.system(size: 23, weight: .bold)).lineLimit(2).frame(height: 57, alignment: .topLeading)
-            amount
+        ZStack(alignment: .topLeading) {
+            brand.frame(width: 316, height: 16, alignment: .topLeading).offset(x: 22, y: 22)
+            Text(title).font(.system(size: 23, weight: .bold)).lineLimit(2)
+                .frame(width: 316, height: 57, alignment: .topLeading).offset(x: 22, y: 48)
+            amount.frame(width: 316, height: 110, alignment: .topLeading).offset(x: 22, y: 112)
             if let cost = value.completionCost {
-                HStack { Text(T("完成时")); Spacer(); Text(money(cost) + " USD").bold().lineLimit(1).minimumScaleFactor(0.3) }.font(.system(size: 10))
+                HStack { Text(T("完成时")); Spacer(); Text(money(cost) + " USD").bold().lineLimit(1).minimumScaleFactor(0.3) }
+                    .font(.system(size: 10)).frame(width: 316, height: 14).offset(x: 22, y: 221)
             }
-            heatmap
-            Spacer(minLength: 0)
-            footer
+            heatmap.offset(x: 22, y: value.completionCost == nil ? 232 : 250)
+            footer.frame(width: 316, height: 59, alignment: .topLeading).offset(x: 22, y: 397)
             Text(note).font(.system(size: 7)).foregroundStyle(.secondary).lineLimit(2)
-        }.padding(22).frame(width: 360, height: 480).background(Color(nsColor: .windowBackgroundColor))
+                .frame(width: 316, height: 18, alignment: .topLeading).offset(x: 22, y: 460)
+        }.frame(width: 360, height: 480, alignment: .topLeading).background(Color(nsColor: .windowBackgroundColor))
     }
     private var brand: some View {
         HStack {
@@ -98,13 +100,13 @@ import UniformTypeIdentifiers
         }
     }
     private var heatmap: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 5) {
             HStack {
                 Text(T("近 30 天")).font(.system(size: 11, weight: .semibold))
                 Spacer()
                 Text(String(value.activeDays) + "/30 " + T("活跃天数")).font(.system(size: 9)).foregroundStyle(.secondary)
             }
-            HStack(spacing: 3) {
+            HStack(spacing: 2) {
                 ForEach(0..<columns, id: \.self) { column in activityColumn(column) }
                 Spacer(minLength: 4)
                 VStack(alignment: .trailing, spacing: 5) {
@@ -116,12 +118,13 @@ import UniformTypeIdentifiers
             if let first = value.days.first, let last = value.days.last {
                 Text(dayLabel(first.date) + " — " + dayLabel(last.date) + " · " + value.timezone).font(.system(size: 8)).foregroundStyle(.secondary).lineLimit(1)
             }
-        }.padding(12).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
+        }.padding(10).frame(width: 316, height: 136, alignment: .topLeading)
+            .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
     }
     private func activityColumn(_ column: Int) -> some View {
-        VStack(spacing: 3) {
+        VStack(spacing: 2) {
             ForEach(0..<7) { row in
-                RoundedRectangle(cornerRadius: 3).fill(cellColor(column * 7 + row - offset)).frame(width: 13, height: 13)
+                RoundedRectangle(cornerRadius: 2).fill(cellColor(column * 7 + row - offset)).frame(width: 10, height: 10)
             }
         }
     }

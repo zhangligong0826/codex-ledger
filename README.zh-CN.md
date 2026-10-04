@@ -51,3 +51,9 @@ MIT 开源。Mac 构建需要 Apple Command Line Tools；原生分层图标需�
 构建命令和依赖见 [英文 README](README.md)、[第三方说明](THIRD-PARTY.md)。两端使用 `Common/` 的共同价格目录及合成测试样本。发布与维护步骤见 [RELEASING.md](RELEASING.md)。
 
 独立社区项目，与 OpenAI、Apple、Microsoft 无隶属关系。
+
+## 分享预览
+
+下图使用模拟数据。卡片在本机生成，默认隐藏名称和路径，二维码始终指向固定下载页。
+
+![模拟数据分享卡片](docs/previews/share-card.png)

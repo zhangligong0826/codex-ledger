@@ -68,3 +68,9 @@ dotnet run --project Windows/Ledger.App -- --show-dashboard
 Inno Setup is required only for Windows installer packaging. Self-contained output is in `dist/`. The common offline catalog and synthetic fixtures in `Common/` are used by both implementations. Native icon workflow: [ICON_DESIGN.md](ICON_DESIGN.md). Contribution/release instructions: [CONTRIBUTING.md](CONTRIBUTING.md), [RELEASING.md](RELEASING.md).
 
 Independent community project; not affiliated with OpenAI, Apple or Microsoft.
+
+## Share preview
+
+The card below uses synthetic demo data. Your cards are generated locally; names and paths are hidden until you choose to show them. The QR always points to the fixed download page.
+
+![Synthetic share-card preview](docs/previews/share-card.png)
