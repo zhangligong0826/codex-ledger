@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.0-beta.1
+
+- Native Windows tray app, x64/ARM64 self-contained installers and portable packages.
+- Local share cards, current-view captures, copy/save PNG, scoped CSV and stable install QR.
+- Shared offline prices and synthetic accounting fixtures; preserve goal completion estimates.
+- Public download page, Homebrew tap and explicit cross-platform release asset validation.
+- Free beta: no formal publisher signing/notarization; physical Windows acceptance pending.
+
 ## 1.1.0
 
 - Slimmer 300-point overview with a calendar-aligned 30-day token heatmap, exact daily tooltips, monthly totals and active days. Response-level deduplication and local calendar boundaries match the ledger.

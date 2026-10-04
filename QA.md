@@ -65,3 +65,13 @@ Login startup has not been tested by logging out/rebooting. Physical multi-displ
 - Native offscreen previews are checked in English/Chinese, light/dark and loading/empty/error states at 300 points, plus a 420-point height to force overflow without a scrollbar track. These checks do not replace the still-pending installed app interaction acceptance.
 
 - The overview-cost and named-goal code passed all 208 checks, app compilation, signature verification and empty-source diagnostics on macOS 14 Apple Silicon, latest macOS Apple Silicon and macOS 15 Intel ([run 37190793982](https://github.com/zhangligong0826/codex-ledger/actions/runs/37190793982), source `47b7451`). Long goal CSV and view expressions were split to support older Swift compilers. A fully unpriced overview was also rendered and inspected; it shows Unpriced rather than zero money.
+
+## 1.2.0-beta.1 cross-platform sharing
+
+- Local Swift validation: 197 accounting/classification/pricing/shared-fixture checks, 12 store navigation/state checks, and 38 goal checks. Windows core initially passes 85 checks on the development Mac; Windows-only path checks run on the hosted Windows runner.
+- The same synthetic modern/legacy/forked long-context records reconcile exact Decimal costs, token/cache/reasoning subsets, dates, duplicate copies, child attribution and model coverage on both implementations. Scoped daily amounts reconcile with their corresponding turns.
+- Synthetic macOS share renders cover English/Chinese and light/dark, 1080 × 1440 output, frozen project/month scope and default name/path privacy. Apple Vision decodes all four QR codes to the stable download page. Visual inspection corrected clipping caused by the seven-row heatmap.
+- Windows uses isolated `--ui-smoke` state, generating six pages × two languages × three appearance modes, plus overview/share cards. Navigation, search/clear, scope, CSV and freeze/dimensions are asserted. Hosted-runner results and inspected artifacts will be recorded with the final passing run.
+- The Windows pipeline validates x64 installer/upgrade/uninstall and installed empty-source diagnostics; ARM64 is cross-built, not executed on native ARM64 hardware. No physical Windows device is available.
+- macOS previews are offscreen views owned by the test process. Installed-app sharing menus, save panels and clipboard interactions have not been independently controlled/verified. Generated images do not count as that interaction acceptance.
+- Free-beta packages do not have formal publisher signing or Apple notarization. No public package is described as fully verified on physical Windows hardware.

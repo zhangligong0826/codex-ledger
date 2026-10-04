@@ -230,7 +230,7 @@ struct SharePreview: Identifiable {
     func makeShareCard(overview: Bool = false) {
         guard rangeReady, activityReady, !busy, !isSharing, !dataUnavailable else { return }
         let now = Date(), calendar = scanner.calendar
-        let sourceLogs = logs, goalBook = self.goalBook, path = sourcePath
+        let sourceLogs = logs, goalBook = self.goalBook, path = sourcePath, sourceOverrides = overrides
         let goalID = overview ? nil : selectedGoalID, projectID = overview ? nil : selectedProjectID
         let chatID = overview ? nil : selectedConversationID
         let goalList = !overview && page == .goals && goalID == nil
@@ -248,7 +248,7 @@ struct SharePreview: Identifiable {
         isSharing = true
         queue.async {
             let monthRange = DateScope.month.interval(now: now, calendar: calendar)
-            let monthTasks = demoMonth ?? LedgerAnalytics.enrich(scanner.snapshot(logs: sourceLogs, start: monthRange.start, end: monthRange.end, root: path), resolver: resolver, titles: [:]).tasks
+            let monthTasks = demoMonth ?? LedgerAnalytics.enrich(scanner.snapshot(logs: sourceLogs, start: monthRange.start, end: monthRange.end, root: path, overrides: sourceOverrides), resolver: resolver, titles: [:]).tasks
             let matching = monthTasks.filter { task in
                 if let goalID, goalBook.owner(task) != goalID { return false }
                 if goalList { return goalBook.owner(task).map { listedGoalIDs.contains($0) } ?? false }

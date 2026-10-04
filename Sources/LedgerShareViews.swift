@@ -21,7 +21,7 @@ import UniformTypeIdentifiers
     }
     static func card(_ value: ShareSnapshot, title: String, showName: Bool, language: String, dark: Bool) -> NSImage? {
         let publicTitle = String(title.trimmingCharacters(in: .whitespacesAndNewlines).prefix(120))
-        let visibleTitle = publicTitle.isEmpty ? (showName ? value.privateTitle : L(value.kind)) : publicTitle
+        let visibleTitle = publicTitle.isEmpty ? (showName ? value.privateTitle : (language == "en" ? LedgerText.english[value.kind] ?? value.kind : value.kind)) : publicTitle
         let view = ShareCardView(value: value, title: visibleTitle, language: language)
             .environment(\.colorScheme, dark ? .dark : .light).frame(width: 360, height: 480)
         let renderer = ImageRenderer(content: view); renderer.scale = 3
@@ -37,14 +37,15 @@ import UniformTypeIdentifiers
     let value: ShareSnapshot
     let title: String
     let language: String
+    private func T(_ key: String) -> String { language == "en" ? LedgerText.english[key] ?? key : key }
     private var peak: Int64 { value.days.map { $0.usage.total }.max() ?? 0 }
     private var offset: Int { value.days.first.map { (Calendar.current.component(.weekday, from: $0.date) + 6) % 7 } ?? 0 }
     private var columns: Int { (offset + value.days.count + 6) / 7 }
     private let greens = [Color.primary.opacity(0.07), Color(red: 0.61, green: 0.82, blue: 0.66), Color(red: 0.29, green: 0.66, blue: 0.43), Color(red: 0.15, green: 0.49, blue: 0.31), Color(red: 0.07, green: 0.34, blue: 0.23)]
     private var note: String {
-        var parts = [L("API 成本估算，非实际账单"), value.priceDate]
-        if value.warning { parts.append(L("部分日志不可读")) }
-        if value.cost.unpricedTokens > 0 || value.monthlyCost.unpricedTokens > 0 { parts.append(L("含未计价用量")) }
+        var parts = [T("API 成本估算，非实际账单"), value.priceDate]
+        if value.warning { parts.append(T("部分日志不可读")) }
+        if value.cost.unpricedTokens > 0 || value.monthlyCost.unpricedTokens > 0 { parts.append(T("含未计价用量")) }
         return parts.joined(separator: " · ")
     }
     var body: some View {
@@ -53,7 +54,7 @@ import UniformTypeIdentifiers
             Text(title).font(.system(size: 23, weight: .bold)).lineLimit(2).frame(height: 57, alignment: .topLeading)
             amount
             if let cost = value.completionCost {
-                HStack { Text(L("完成时")); Spacer(); Text(LedgerPricing.display(cost) + " USD").bold() }.font(.system(size: 10))
+                HStack { Text(T("完成时")); Spacer(); Text(LedgerPricing.display(cost) + " USD").bold() }.font(.system(size: 10))
             }
             heatmap
             Spacer(minLength: 0)
@@ -70,22 +71,22 @@ import UniformTypeIdentifiers
     }
     private var amount: some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text(L("预估 API 花费") + " · USD").font(.system(size: 10)).foregroundStyle(.secondary)
+            Text(T("预估 API 花费") + " · USD").font(.system(size: 10)).foregroundStyle(.secondary)
             Text(LedgerPricing.display(value.cost)).font(.system(size: 38, weight: .semibold, design: .rounded)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.55)
-            Text(value.range + (value.filtered ? " · " + L("已筛选") : "")).font(.system(size: 10)).foregroundStyle(.secondary)
+            Text(value.range + (value.filtered ? " · " + T("已筛选") : "")).font(.system(size: 10)).foregroundStyle(.secondary)
             HStack(spacing: 12) {
                 Text(compactTokens(value.usage.total) + " tokens")
-                Text(String(value.turns) + " " + L("任务轮次"))
-                Text(String(value.models) + " " + L("模型"))
+                Text(String(value.turns) + " " + T("任务轮次"))
+                Text(String(value.models) + " " + T("模型"))
             }.font(.system(size: 10, weight: .medium)).lineLimit(1)
         }
     }
     private var heatmap: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text(L("近 30 天")).font(.system(size: 11, weight: .semibold))
+                Text(T("近 30 天")).font(.system(size: 11, weight: .semibold))
                 Spacer()
-                Text(String(value.activeDays) + "/30 " + L("活跃天数")).font(.system(size: 9)).foregroundStyle(.secondary)
+                Text(String(value.activeDays) + "/30 " + T("活跃天数")).font(.system(size: 9)).foregroundStyle(.secondary)
             }
             HStack(spacing: 3) {
                 ForEach(0..<columns, id: \.self) { column in activityColumn(column) }
@@ -118,9 +119,9 @@ import UniformTypeIdentifiers
                 Image(nsImage: qr).interpolation(.none).resizable().frame(width: 49, height: 49).padding(5).background(.white).clipShape(RoundedRectangle(cornerRadius: 6))
             }
             VStack(alignment: .leading, spacing: 4) {
-                Text(L("扫码下载 · Mac / Windows")).font(.system(size: 10, weight: .semibold))
+                Text(T("扫码下载 · Mac / Windows")).font(.system(size: 10, weight: .semibold))
                 Text("zhangligong0826.github.io/codex-ledger").font(.system(size: 7)).lineLimit(1)
-                Text(L("本地统计 · MIT 开源")).font(.system(size: 8)).foregroundStyle(.secondary)
+                Text(T("本地统计 · MIT 开源")).font(.system(size: 8)).foregroundStyle(.secondary)
             }
         }
     }

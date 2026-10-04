@@ -1,74 +1,53 @@
-# Codex Ledger · Codex 工作账本
+# Codex Ledger
 
-原生 macOS 菜单栏应用，查看本机 Codex 的 token 用在了哪些项目、对话和工作上。
+在 Mac 菜单栏和 Windows 系统托盘，查看每个目标、项目、对话及任务轮次用了多少 token、对应多少 API 成本估算，并展示近 30 天热力图。
 
-[English](README.md) · [版本发布](https://github.com/zhangligong0826/codex-ledger/releases)
+[下载与安装](https://zhangligong0826.github.io/codex-ledger/) · [English](README.md) · [验证记录](QA.md) · [计价说明](PRICING.md)
 
-## 安装
+## 安装免费测试版
 
-**当前为候选版本：** 源码和本地安装包已就绪，公开安装包及 Homebrew Tap 等待最后的原生界面验收。下方 Homebrew 命令在首次正式发布后可用。
+**1.2.0-beta.1**：macOS 14 及以上（Apple 芯片／Intel），Windows 11（x64／ARM64）。
 
-支持 macOS 14 及以上，通用包同时支持 Apple Silicon 和 Intel。
+Mac：从[发布页](https://github.com/zhangligong0826/codex-ledger/releases/tag/v1.2.0-beta.1)下载 universal DMG，打开后把 Codex Ledger 拖到 Applications，启动后点击菜单栏图标。也可以使用 Homebrew：
 
 ```sh
 brew install --cask zhangligong0826/tap/codex-ledger
 ```
 
-从“应用程序”打开 Codex Ledger，点击菜单栏图标查看紧凑总览，选择“查看目标账本”打开账本。也可以下载 DMG，将应用拖入 Applications。
+Windows：下载对应架构的安装 EXE，或解压免安装 ZIP 后运行 `CodexLedger.exe`。点击系统托盘图标查看总览和详细账本。运行时已内置，默认按当前用户安装。升级和卸载保留本机设置及目标账本。
 
-**首次打开：当前包使用 ad-hoc 签名，尚未经过 Apple 公证。** 如果 macOS 拦截，先尝试打开，再到“系统设置 → 隐私与安全性”选择“仍要打开”，确认信任来源后继续。安装器保留系统安全检查，不自动移除隔离属性。SHA-256 校验确认文件完整性，不能证明发布者身份。参见 [Apple 说明](https://support.apple.com/102445)。
+测试版的 Mac 使用临时签名、未完成 Apple 公证，Windows 尚未正式签名。首次打开请按 [Apple 官方步骤](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac)及 Windows 设备策略确认，公司设备可能需要管理员批准。安装流程保留系统安全检查。
 
-```sh
-brew upgrade --cask zhangligong0826/tap/codex-ledger
-brew uninstall --cask zhangligong0826/tap/codex-ledger
-```
+发布页 `CHECKSUMS.txt` 提供全部六个安装产物的 SHA-256。Windows ARM64 已交叉构建，尚未完成原生运行及 Windows 实机验收；具体范围见 [QA.md](QA.md)。
 
-卸载不会删除 Codex 日志。保留一份安装副本；从手动安装迁移到 Homebrew 时，先退出并移走旧应用，不要删除 `.codex` 数据。
+## 为具体目标记账
 
-## 查看与导出
+创建“完成论文”“做出这个 app”等目标，将相关项目、对话、轮次归入目标。归属优先级为轮次 → 对话 → 项目，每轮最多计入一个目标；明确“不归入目标”会停止继承。项目和对话规则覆盖既有及后续轮次。
 
-- 今天、昨天、近 7 天、近 30 天、历史累计。
-- **目标 → 对话 → 任务轮次**：给成果命名，跨目录、跨对话归入相关工作，查看不受日期筛选影响的累计金额，标记完成时保存当时金额。
-- **项目 → 对话 → 任务轮次**；同一 Git 仓库子目录和 worktree 合并，普通目录按完整路径区分。
-- 每轮按目录归属，跨项目对话有标记。项目内只统计该项目消耗，全局统计所选日期内的完整对话消耗。缺少目录的记录放入“未识别项目”。
-- **预估 API 花费（美元）**，覆盖总览、项目、对话、任务和模型，点击金额旁的信息按钮查看输入／缓存／输出金额和未计价用量。
-- 每轮输入、缓存输入、输出、推理输出，以及对话模型和用途分布。搜索项目名、路径、对话标题、任务和模型。
-- 导出项目／对话汇总 CSV；对话详情另可导出各轮 CSV。任务和模型页支持导出，表头跟随语言。
-- 默认英文，可切换简体中文；支持系统、浅色、深色外观，登录启动、菜单栏数字、手动分类和打开原始聊天。
-- 分层原生 Liquid Glass 应用图标，支持系统明暗及着色外观，旧版 macOS 使用兼容图标。
+累计金额不随日期筛选改变。标记完成保存当时的 token、估算金额和价格日期，后续工作不改写完成时记录。重新打开会清除完成记录，删除目标只移除归属规则，保留日志。
 
-总览以预估 API 金额为主数字，包含最近 30 天的 GitHub 风格用量热力格、30 天预估金额、token 合计和活跃天数。悬停查看日期、当天预估金额、token 和响应数；每天的金额与账本共享去重和逐响应计价，保留未计价用量。四档绿色以单日峰值划分，空白格只是日历留白。热力图不跟随上方日期筛选。
+项目按仓库或工作目录区分，同一仓库 worktree 合并；同名文件夹显示路径。支持项目／目标 → 对话 → 轮次导航、跨项目对话、搜索和当前范围 CSV。提供中英文及跟随系统／浅色／深色外观。
 
-总览最大 300 × 560 点，标题、日期和底栏固定，内容可滚动，隐藏滚动条。右键可刷新、打开账本、设置或退出；激活时 ⌘L 切换总览，Escape 收起，⌘Q 退出，总览中 ⌘R 刷新。
+## 截图与分享
 
-## 统计完成一个目标的花费
+分享菜单提供“生成分享卡片”“保存当前界面”“导出 CSV”。卡片为适合小红书的 **1080×1440 PNG**，展示估算美元金额、token、轮次、近 30 天热力图及安装二维码；已完成目标也显示完成时金额。
 
-例如在对话卡片选择“归入目标 → 新建目标并归入…”，命名为 **开发 Codex Ledger**。界面修改、图标、发布讨论和调试都可计入这个目标，不受“问答与学习”等用途分类影响。其他对话或项目可归入同一目标，个别轮次也可单独调整。
-
-每轮只计入一个目标，归属优先级为轮次、对话、项目。项目或对话规则涵盖既有及未来轮次，未归属的用量保留。“目标金额＋未归属金额”对应完整账本。标记完成保存当时金额、token 和价格核对日期，后续用量只改变累计，不改写完成时记录；重新打开目标会清除完成时记录。删除目标只移除规则，不删除日志。金额仍为 API 估算，未知单价不会当成零。目标 CSV 同时提供所选日期、累计和完成时数字，轮次 CSV 附目标名称。
+卡片默认隐藏名称、路径和对话标题，可填写公开标题，或选择显示原始名称。界面截图保留当前可见内容。先检查预览，再复制或保存。生成期间冻结统计，图片处理全部在本机完成；二维码指向固定下载入口，版本更新后仍然有效。
 
 ## 统计与隐私
 
-总 token＝输入＋输出。缓存是输入子集，推理是输出子集，不额外相加。日期按响应时间和本机时区计算。现代记录按响应 ID 去重并排除继承副本，旧日志读取累计增量。匹配父轮次的子代理归入父任务及项目，其余后台活动保留。各层使用同一份去重调用汇总。
+总 token＝输入＋输出，缓存输入及推理输出分别为子集，不重复相加。响应 ID 跨归档副本去重，排除继承历史，将匹配的子代理调用归入父轮次；旧日志按累计增量及重置段计算。按本机时区逐次响应归到日期，处理夏令时边界。
 
-只覆盖本机仍保留的可读日志，不代表订阅额度或账单。用途由规则推断，可手动修正；关联文件只代表日志出现且本机存在。
+金额使用共同的离线 Standard API 单价快照，逐次响应计算缓存及长上下文价格。未知模型保留为未计价，部分估算显示 `*`。**金额是 API 成本估算，不代表订阅扣款或实际账单。**价格日期及排除项详见 [PRICING.md](PRICING.md)。
 
-金额使用已核对的 [OpenAI 官方 Standard API 单价](https://developers.openai.com/api/docs/pricing)（2026-10-04 快照），逐个去重响应计算。缓存单独计价，推理不重复收费；长上下文按单次响应判断，旧日志无法确认时按短上下文估算。未知模型不猜价：部分计价显示 `*`，全部未计价显示“单价未知”，不会当成零元。历史用量也使用当前价格快照，含促销价格。金额未含缓存写入溢价、Fast／Batch／Flex 档位差异、工具费和税费；**不代表订阅用户的实际扣款**。CSV 保留金额精度、计价覆盖和核对日期。详见 [PRICING.md](PRICING.md)。
+应用不联网、不调用模型、不读取登录凭证、不上传聊天。对话标题 SQLite 为可选只读来源，缺失或不兼容时回退日志；仓库识别只读取有大小限制的 Git 指针文件，不执行 Git、钩子或配置。CSV 与界面截图可能包含私人名称和路径。
 
-应用不联网，不调用模型，不读取登录凭证，不上传聊天。只读兼容的本机 SQLite 标题，缺失时回退到日志；仓库识别按 [Git 官方目录格式](https://git-scm.com/docs/gitrepository-layout) 只读少量 `.git`、`commondir` 元数据，不运行 Git、钩子或配置。下载使用无需安装开发工具。索引留在内存，设置、目标名称、归属规则及完成时金额保存在本机 UserDefaults，每个数据目录有独立目标账本。CSV 仅在选择导出时写入，可能包含私人标题和路径，请自行选择分享对象。
+默认读取 `CODEX_HOME` 或用户目录的 `.codex`，包含 `sessions` 和 `archived_sessions`，可在设置中更换。每 30 秒后台检查变化，首次读取历史可能较慢。各数据目录独立保存目标账本；Mac 沿用 UserDefaults，Windows 保存在 `%LOCALAPPDATA%\CodexLedger`。
 
-默认读取 `CODEX_HOME` 或 `~/.codex`，含 `sessions` 和 `archived_sessions`，可在设置换目录。每 30 秒检查变化文件；至少覆盖最近 30 天，目标账本和历史累计会在后台读取所有仍保留的日志，仓库识别和汇总在后台执行，首次历史扫描可能较久。
+## 开发
 
-## 源码
+MIT 开源。Mac 构建需要 Apple Command Line Tools；原生分层图标需要初始化的 Xcode 26 及以上。Windows 使用 .NET 10，安装包制作另需 Inno Setup。下载使用无需安装开发工具。
 
-MIT 开源，无第三方依赖。安装 Apple Command Line Tools 后即可使用兼容图标构建；选择已初始化的 Xcode 26 及以上可编译原生分层图标。下载使用的用户无需安装这些工具。
+构建命令和依赖见 [英文 README](README.md)、[第三方说明](THIRD-PARTY.md)。两端使用 `Common/` 的共同价格目录及合成测试样本。发布与维护步骤见 [RELEASING.md](RELEASING.md)。
 
-```sh
-git clone https://github.com/zhangligong0826/codex-ledger.git
-cd codex-ledger
-zsh test.sh
-zsh build.sh
-zsh package.sh
-```
-
-产物在 `dist/`。`CODEX_LEDGER_NATIVE_ICON=required zsh build.sh` 要求编译原生图标；`off` 使用兼容 ICNS。图标源文件为 `Assets/AppIcon.icon`，使用 Apple Icon Composer 编辑，`zsh make-native-icon.sh` 重新生成预览及兼容图标，详见 [图标工作流](ICON_DESIGN.md)。构建、诊断和演示模式见 [英文 README](README.md)，验证范围见 [QA.md](QA.md)。独立社区项目，与 OpenAI 和 Apple 无隶属关系。
+独立社区项目，与 OpenAI、Apple、Microsoft 无隶属关系。

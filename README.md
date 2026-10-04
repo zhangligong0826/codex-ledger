@@ -1,72 +1,52 @@
 # Codex Ledger
 
-<img src="Assets/AppIcon-1024.png" width="112" alt="Codex Ledger glass bar chart icon">
+A local Codex work ledger for **macOS and Windows**. See what each goal, project, conversation and task turn used in tokens and estimated API cost, with a 30-day contribution-style heatmap.
 
-A native macOS menu bar app that shows what your local Codex tokens worked on: coding, questions, research, presentations, documents, spreadsheets, and design.
+[Download and install](https://zhangligong0826.github.io/codex-ledger/) · [中文](README.zh-CN.md) · [Validation](QA.md) · [Pricing](PRICING.md)
 
-[简体中文](README.zh-CN.md) · [Releases](https://github.com/zhangligong0826/codex-ledger/releases) · [Homebrew tap](https://github.com/zhangligong0826/homebrew-tap)
+## Install the free beta
 
-## Install
+**1.2.0-beta.1** — macOS 14+ (Apple Silicon/Intel), Windows 11 (x64/ARM64).
 
-**Release candidate:** source and local packages are ready. The first public binary release and Homebrew tap are pending final native UI acceptance. The Homebrew command below becomes available after that release.
-
-Requires **macOS 14 or later**. One universal binary supports Apple Silicon and Intel.
+Mac: download the universal DMG from the [release](https://github.com/zhangligong0826/codex-ledger/releases/tag/v1.2.0-beta.1), open it and drag Codex Ledger to Applications. Click the menu-bar icon after launching. Homebrew:
 
 ```sh
 brew install --cask zhangligong0826/tap/codex-ledger
 ```
 
-Open **Codex Ledger** from Applications. Click its menu bar icon for a compact overview; choose **View goals** for the ledger. The app stays running when you close the ledger window.
+Windows: use the installer matching your architecture, or extract the portable ZIP and run `CodexLedger.exe`. The system-tray icon opens the overview and work ledger. The .NET runtime is bundled, and installation is per-user. Upgrades and uninstall preserve local settings/goal books.
 
-Alternatively, download the DMG from [Releases](https://github.com/zhangligong0826/codex-ledger/releases/latest), open it, and drag Codex Ledger into Applications. A ZIP and SHA-256 checksums are also provided.
+This free beta has ad-hoc signing on macOS and no formal Windows publisher signature or Apple notarization. Use the [Apple first-launch instructions](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac) and your Windows device's installation policy. Corporate devices may require administrator approval. No installer disables Gatekeeper, quarantine, Defender or SmartScreen.
 
-**First launch:** releases currently use an ad-hoc signature and are **not Apple notarized**. macOS may block opening. After attempting to open, use **System Settings → Privacy & Security → Open Anyway** if you trust this release, then confirm Open. Follow [Apple's instructions](https://support.apple.com/102445). The installer preserves Gatekeeper and quarantine protections. A checksum verifies file integrity; it does not establish publisher identity.
+SHA-256 values for all six binary assets are in `CHECKSUMS.txt` on the release. Windows ARM64 is cross-built; native ARM64 execution and physical Windows device acceptance are not verified. See [QA.md](QA.md).
 
-```sh
-brew upgrade --cask zhangligong0826/tap/codex-ledger
-brew uninstall --cask zhangligong0826/tap/codex-ledger
-```
+## Your goals, measured
 
-Uninstalling does not remove your Codex logs. Keep one installed copy; when moving from manual installation to Homebrew, quit and remove the old app bundle first. Do not delete your `.codex` folder.
+Create a goal such as “Build my app” or “Finish this paper,” then assign projects, conversations or individual turns. Attribution priority is **turn → conversation → project**; each turn belongs to at most one goal. Explicit unassignment stops inheritance. Project/chat rules include existing and future turns.
 
-## What you can see
+Goal lifetime totals are independent of the date filter. Marking a goal complete stores that moment's tokens, cost estimate and price date. Later work changes the lifetime total without rewriting completion; reopening clears the completion record. Deleting a goal removes rules, never source logs.
 
-- Today, Yesterday, Last 7 days, Last 30 days, and All time.
-- **Named goals → Conversations → Task turns**: group work across directories and chats for an outcome, see lifetime cost independently of the date filter, rename goals and save the cost at completion. Assign whole projects/chats (including future turns) or individual turns.
-- **Projects → Conversations → Task turns**, including input, cached input, output, reasoning output, models, work categories, and recent activity.
-- Repositories combine subdirectories and linked worktrees. Ordinary folders remain separate by full path. Unidentified projects retain usage.
-- Conversations spanning projects are split by each turn's working directory. Project views show that project's share; global conversations show full usage within the selected date range.
-- **Estimated API cost in USD**, including input/cache/output breakdowns, project/conversation/turn/model costs and explicit unpriced coverage.
-- Search project names, paths, conversation titles, requests, and models. Export project/conversation summaries, task turns, or model usage as CSV.
-- English by default, Simplified Chinese, and System/Light/Dark. Optional launch at login and menu bar token count.
-- Native layered Liquid Glass app icon on supported systems, with a compatible icon for older macOS.
-- Local rule-based classification with manual corrections. Open the original Codex chat or linked local files.
+Projects group by repository/work directory, combine Git worktrees, and distinguish identically named folders by path. Conversations crossing projects retain their scoped amounts. Drill down from goals/projects into chats and turns; search and export the current scope. English/Chinese UI and system/light/dark themes are available.
 
-The overview is at most **300 × 560 points**, with a fixed header/footer and scrollable body whose scroll indicators are hidden. Right-click the menu bar icon for actions. ⌘L toggles the overview while active; Escape dismisses it; ⌘Q quits. The overview supports ⌘R to refresh.
+## Share an image
 
-## Track the cost of an outcome
+The Share menu provides **Create share card**, **Save current view**, and **Export CSV**. Cards are 1080 × 1440 PNGs showing estimated USD, tokens, task turns, the last 30 days and an installation QR. Completed goals also show the frozen completion amount.
 
-For example, create **Build Codex Ledger** from a conversation's **Assign to goal → Create and assign…** menu. Its UI fixes, icon work, release discussions and debugging can all belong to that outcome, regardless of inferred categories. Assign other chats or projects to the same goal. Individual turns can override a conversation assignment or be left unassigned.
-
-A turn belongs to at most one goal: individual turn assignments override conversation assignments, which override project assignments. Rules include existing and future turns. Unassigned usage remains visible; goals plus unassigned usage reconcile with the ledger. Mark complete to save a local cost/token snapshot and the price verification date; later assigned usage changes the lifetime total but not that completion record. Reopening clears the completion record. Deleting a goal removes its rules without deleting Codex logs. Unknown model prices remain unpriced. Goal CSV includes selected-range, lifetime and completion figures; turn CSV includes the goal name.
+Names, paths and chat titles are hidden on cards by default. You may enter a public title or opt into the original name. Current-view captures retain visible content. Preview before copying/saving. Generation freezes the statistics, and all image processing stays on your device. Scan the QR to reach the same download page after future updates.
 
 ## Accounting and privacy
 
-**Total tokens = input + output.** Cache and reasoning are subsets, not additional tokens. Dates follow response timestamps in the Mac's local timezone. Task turns differ from model calls.
+Total tokens = input + output. Cached input and reasoning output are subsets, not additional tokens. Response IDs are deduplicated across active/archived copies, inherited fork history is excluded, and matched child calls are attributed to the parent turn. Legacy cumulative counters use increments/reset segments. Local calendar days and DST boundaries apply per response.
 
-Modern logs use response IDs for deduplication and exclude inherited conversation copies. Legacy logs use cumulative deltas and handle resets. Child-agent responses matching a parent turn belong to its task and project. Unmatched internal activity remains visible. Project, conversation, task, and model totals come from the same deduplicated calls.
+Cost uses the bundled offline Standard API price snapshot, per deduplicated response, including cache and long-context rules. Unknown models remain unpriced; partial estimates carry `*`. **An API estimate is not a subscription payment or actual bill.** Rates, exclusions and the verification date are documented in [PRICING.md](PRICING.md).
 
-Only readable local `sessions` and `archived_sessions` logs are covered. Other devices, cloud-only work, deleted logs, and unrecorded usage may be absent. These numbers are **not subscription quota percentages or a billing statement**. Classification is a heuristic; it can be corrected. Linked files are existing paths found in logs, not proof that an artifact was completed.
+The app makes no network/model calls, reads no login credentials, and uploads no chats. SQLite titles are optional and read-only; missing/incompatible metadata falls back to logs. Repository discovery reads bounded Git pointer files without invoking Git, hooks or configuration. Exported CSV/current-view captures may include personal titles and paths.
 
-Costs use bundled [official OpenAI Standard API prices](https://developers.openai.com/api/docs/pricing), verified **2026-10-04**, applied to deduplicated responses. Cached input is charged at its own rate; reasoning is already included in output. Long-context pricing is evaluated per response, never on project totals. Unverified legacy context uses short-context rates. Unknown model names are not guessed: partial estimates carry `*`, and fully unpriced usage shows **Unpriced** rather than $0. Historical usage also uses the current bundled snapshot, including promotional prices. Cache-write premiums, Fast/Batch/Flex differences, tool fees and taxes are excluded. A subscription does not charge this amount per token. CSV preserves decimal precision and includes priced/unpriced coverage and the price date. See [pricing details](PRICING.md).
-
-The app makes **no network requests**, uses no API key, calls no model, reads no login credentials, and uploads no chats. Local conversation titles are read from compatible SQLite metadata in read-only mode; missing or incompatible metadata falls back to log requests. Repository discovery reads small `.git` and `commondir` pointer files using the [documented Git layout](https://git-scm.com/docs/gitrepository-layout), without running Git, hooks or configuration. End users need no developer tools. The scan index stays in memory; preferences, classification overrides and your goal names/assignments/completion cost records use local UserDefaults. Each Codex data folder has its own goal book. CSV is written only on export and may contain private titles and paths.
-
-The default source is `CODEX_HOME` or `~/.codex`; change it in Settings. The overview leads with estimated API cost and always includes a 30-day activity heatmap, monthly estimated cost, token total and active-day count. Hovering a day shows its estimated USD cost, exact tokens and response count. Daily costs are summed from the same deduplicated, individually priced responses as the ledger; unknown prices retain unpriced coverage. Four green levels are relative to the largest day; blank calendar padding is not a recorded day. This month stays visible independently of the selected ledger range. Every 30 seconds, only changed files are reparsed. At least the last 30 days are scanned; Goals and All time expand scanning to all retained logs in the background. Repository lookup and aggregation use a serial background queue. All time covers all readable logs still retained on this Mac.
+Default source: `CODEX_HOME` or your user folder's `.codex`, including `sessions` and `archived_sessions`; choose another source in Settings. Changed logs are checked every 30 seconds in the background. First lifetime scans can take longer. Each source has its own local goal book. macOS uses existing UserDefaults; Windows uses `%LOCALAPPDATA%\CodexLedger`.
 
 ## Build and contribute
 
-Needs Apple's Command Line Tools (`xcode-select --install`), no third-party packages. Full, initialized Xcode 26+ compiles the native layered icon; Command Line Tools-only builds use the checked-in compatible ICNS. End users need neither tool.
+MIT licensed. macOS requires Apple Command Line Tools for compatible icons, or initialized Xcode 26+ for native layered icons. End users need neither. Windows uses .NET 10, Microsoft.Data.Sqlite.Core/SQLitePCLRaw and QRCoder; build tools and libraries are documented in [THIRD-PARTY.md](THIRD-PARTY.md).
 
 ```sh
 git clone https://github.com/zhangligong0826/codex-ledger.git
@@ -76,19 +56,15 @@ zsh build.sh
 zsh package.sh
 ```
 
-The app, universal ZIP, DMG and `CHECKSUMS.txt` are written to `dist/`. Set `CODEX_LEDGER_ARCH=arm64` or `x86_64` for one architecture; packaging requires universal. Set `CODEX_LEDGER_OUTPUT_DIR` for another output directory. Optional `CODEX_LEDGER_INSTALL=1 zsh build.sh` installs into `~/Applications`; quit the previous copy first.
+Windows build/test/package, from PowerShell:
 
-```sh
-# Synthetic data; isolated preferences; no personal logs read
-"dist/Codex Ledger.app/Contents/MacOS/CodexLedger" --demo
-# Read-only aggregate JSON, without opening a window
-"dist/Codex Ledger.app/Contents/MacOS/CodexLedger" --diagnose --scope=30d
+```powershell
+dotnet run --project Windows/Ledger.Tests
+dotnet build Windows/Ledger.App
+dotnet run --project Windows/Ledger.App -- --show-dashboard
+./Windows/package.ps1
 ```
 
-Diagnostic scopes: `today`, `yesterday`, `7d`, `30d`, `all`; `CODEX_LEDGER_SOURCE` overrides its source directory. Demo states `ready`, `loading`, `empty`, `error` use `CODEX_LEDGER_DEMO_STATE`. Set `CODEX_LEDGER_NATIVE_ICON=required` to require a native icon build, or `off` for the ICNS fallback. Rebuild icon previews with `zsh make-native-icon.sh` using Apple's Icon Composer. The editable layered document and [icon workflow](ICON_DESIGN.md) are included.
+Inno Setup is required only for Windows installer packaging. Self-contained output is in `dist/`. The common offline catalog and synthetic fixtures in `Common/` are used by both implementations. Native icon workflow: [ICON_DESIGN.md](ICON_DESIGN.md). Contribution/release instructions: [CONTRIBUTING.md](CONTRIBUTING.md), [RELEASING.md](RELEASING.md).
 
-See [contributing](CONTRIBUTING.md), [validation](QA.md), and [releasing](RELEASING.md). CI covers native Apple Silicon and Intel builds and a macOS 14 runner. Visual inspection is separate from headless CI.
-
-## License and credits
-
-[MIT](LICENSE), including original source and icon. Independent community project, unaffiliated with OpenAI or Apple. The compact overview takes layout inspiration from [OpenUsage](https://www.openusage.ai/); it uses an independent name, icon, and SwiftUI implementation.
+Independent community project; not affiliated with OpenAI, Apple or Microsoft.
