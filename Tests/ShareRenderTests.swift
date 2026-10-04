@@ -40,14 +40,20 @@ import Vision
         let filteredDeadline = Date().addingTimeInterval(15)
         while snapshot == nil && Date() < filteredDeadline { RunLoop.main.run(until: Date().addingTimeInterval(0.02)) }
         precondition(snapshot?.usage.total == 0 && store.csvExport().0.split(separator: "\n").count == 1, "Filtered chat CSV and share agree")
-        store.navigate(.goals); store.goalBookReadable = false; snapshot = nil
-        precondition(!store.contextReady && !store.goalAmountsReady, "Unreadable attribution is unknown, not zero")
-        store.makeShareCard(); precondition(snapshot == nil && !store.isSharing, "Unreadable goal scope cannot be shared")
-        store.makeShareCard(overview: true)
+        let defaults = LedgerPreferences.defaults
+        let key = "goalBook.v1:" + URL(fileURLWithPath: store.sourcePath).standardizedFileURL.path
+        let originalBook = defaults.data(forKey: key)
+        defaults.set(Data("invalid".utf8), forKey: key)
+        let corrupt = LedgerStore(); corrupt.loadDemo()
+        var badSnapshot: ShareSnapshot?
+        corrupt.presentShare = { badSnapshot = $0.snapshot }
+        precondition(!corrupt.contextReady && !corrupt.goalAmountsReady, "Unreadable attribution is unknown, not zero")
+        corrupt.makeShareCard(); precondition(badSnapshot == nil && !corrupt.isSharing, "Unreadable goal scope cannot be shared")
+        corrupt.makeShareCard(overview: true)
         let rawDeadline = Date().addingTimeInterval(15)
-        while snapshot == nil && Date() < rawDeadline { RunLoop.main.run(until: Date().addingTimeInterval(0.02)) }
-        precondition(snapshot?.usage.total == store.snapshot.usage.total, "Independent raw overview remains available")
-        store.goalBookReadable = true
+        while badSnapshot == nil && Date() < rawDeadline { RunLoop.main.run(until: Date().addingTimeInterval(0.02)) }
+        precondition(badSnapshot?.usage.total == corrupt.snapshot.usage.total, "Independent raw overview remains available")
+        if let originalBook { defaults.set(originalBook, forKey: key) } else { defaults.removeObject(forKey: key) }
         print("Generating install QR"); fflush(stdout)
         precondition(ShareImages.qr() != nil, "Install QR must be generated")
         print("Install QR generated; rendering card"); fflush(stdout)

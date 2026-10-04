@@ -87,6 +87,7 @@ struct SharePreview: Identifiable {
     }
     var busy: Bool { isLoading || isComputing }
     var rangeReady: Bool { renderedScope == scope }
+    var goalBookAvailable: Bool { goalBookReadable }
     var requiresGoalBook: Bool { page == .goals || selectedGoalID != nil || unassignedOnly }
     var contextReady: Bool { rangeReady && !dataUnavailable && (!requiresGoalBook || goalBookReadable) }
     var logsAreEmpty: Bool { logs.isEmpty && !LedgerPreferences.isDemo }
