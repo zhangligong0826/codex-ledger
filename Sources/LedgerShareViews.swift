@@ -57,6 +57,11 @@ import UniformTypeIdentifiers
     private func money(_ cost: CostEstimate) -> String {
         cost.hasEstimate ? LedgerPricing.money(cost.totalUSD) + (cost.unpricedTokens > 0 ? " *" : "") : T("单价未知")
     }
+    private var completionLabel: String {
+        let date = value.completionDate.map { value.dateLabel($0) } ?? ""
+        let price = value.completionPriceDate ?? T("单价未知")
+        return [date, T("完成时价格") + " " + price].joined(separator: " · ")
+    }
     private var columns: Int { (offset + value.days.count + 6) / 7 }
     private let greens = [Color.primary.opacity(0.07), Color(red: 0.61, green: 0.82, blue: 0.66), Color(red: 0.29, green: 0.66, blue: 0.43), Color(red: 0.15, green: 0.49, blue: 0.31), Color(red: 0.07, green: 0.34, blue: 0.23)]
     private var note: String {
@@ -75,7 +80,7 @@ import UniformTypeIdentifiers
             if let cost = value.completionCost {
                 HStack { Text(T("完成时")); Spacer(); Text(money(cost) + " USD").bold().lineLimit(1).minimumScaleFactor(0.3) }
                     .font(.system(size: 10)).frame(width: 316, height: 14).offset(x: 22, y: 221)
-                Text((value.completionDate.map { value.dateLabel($0) } ?? "") + " · " + T("完成时价格") + " " + (value.completionPriceDate ?? T("单价未知")))
+                Text(completionLabel)
                     .font(.system(size: 7)).foregroundStyle(.secondary).lineLimit(1).frame(width: 316, alignment: .leading).offset(x: 22, y: 237)
             }
             heatmap.offset(x: 22, y: value.completionCost == nil ? 232 : 250)
