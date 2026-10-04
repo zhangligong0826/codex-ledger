@@ -4,8 +4,9 @@ Version 1.1.0 · 2026-10-04
 
 ## Automated checks
 
-- 134 accounting/classification/analytics/pricing checks and 9 navigation/scope regressions pass locally.
+- 142 accounting/classification/analytics/pricing checks and 9 navigation/scope regressions pass locally.
 - Fixtures cover multi-turn and multi-chat projects, identical folder names, repository subdirectories, symlink aliases, linked worktrees, cross-project conversations, missing/deleted directories, duplicate/archived copies, per-response date boundaries, legacy counters and parent/subagent attribution.
+- Additional file-created repository/worktree fixtures cover relative and absolute Git pointers, subdirectories, missing metadata, malformed/oversized pointers and invalid common directories. Production discovery runs no Git executable and cannot invoke the macOS developer tools installer.
 - Price checks cover cached/reasoning subsets, exact Decimal arithmetic, short/long thresholds, legacy context uncertainty, unknown aliases, duplicate/date/subagent records and project/conversation/model/CSV equality. All 25 bundled rates were compared against official Standard prices and the documented snapshot alias.
 - All token fields agree across task/project/conversation summaries. Per-conversation models preserve accounting, including child agents and project scopes. Read-only metadata lookup leaves fixture databases unchanged; missing/incompatible schemas fall back safely.
 - CSV checks include escaping, formula neutralization, UTF-8 BOM, localization and scope. Native save dialogs exported a 3-chat project summary, a 1-chat scoped summary and its 2 turns. Python CSV parsing confirmed totals and paths match the UI.
@@ -21,7 +22,7 @@ Version 1.1.0 · 2026-10-04
 - Xcode `actool` compiles the document for a macOS 14 deployment target without warnings or errors. The generated Info.plist supplies `CFBundleIconName=AppIcon`; `Assets.car` contains three native appearance stacks and three-vector-layer groups with lighting and specular material. `assetutil` validates its structural integrity.
 - Small generated compatibility icons were visually inspected at 32 and 128 pixels. Universal native builds and Command Line Tools-only fallback builds are checked separately; required-native mode rejects a Command Line Tools-only toolchain.
 - The release workflow requires native compilation, and packaging rechecks the extracted signed app's native assets before creating the DMG. End users do not need Xcode or Icon Composer.
-- Installed Finder/Dock rendering and the final app UI remain unverified because native app control was not authorized. CLI rendering and catalog validation do not replace those checks.
+- The native icon commit passed all three macOS CI jobs, including required native compilation on the latest runner ([run 37186588211](https://github.com/zhangligong0826/codex-ledger/actions/runs/37186588211)). Installed Finder/Dock rendering and the final app UI remain unverified because native app control was not authorized. CLI rendering and catalog validation do not replace those checks.
 
 ## Native UI checks
 

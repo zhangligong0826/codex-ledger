@@ -8,7 +8,8 @@ struct ProjectIdentity: Equatable {
     static let unknown = Self(id: "unidentified-project", name: "未识别项目", path: "")
 }
 
-// Used exclusively by the serial analytics queue. Git discovery never touches the index.
+// Used exclusively by the serial analytics queue. Repository discovery is file-only:
+// invoking macOS's /usr/bin/git shim can prompt users to install developer tools.
 final class ProjectResolver: @unchecked Sendable {
     private var cache: [String: (Date, ProjectIdentity)] = [:]
     func resolve(_ directory: String) -> ProjectIdentity {
@@ -19,9 +20,8 @@ final class ProjectResolver: @unchecked Sendable {
         var ancestor = url
         while ancestor.path != "/" {
             if FileManager.default.fileExists(atPath: ancestor.appendingPathComponent(".git").path) {
-                if let top = git(url.path, "--show-toplevel"), let common = git(url.path, "--git-common-dir") {
-                    let commonURL = (common.hasPrefix("/") ? URL(fileURLWithPath: common) : url.appendingPathComponent(common)).standardizedFileURL.resolvingSymlinksInPath()
-                    let projectURL = commonURL.lastPathComponent == ".git" ? commonURL.deletingLastPathComponent() : URL(fileURLWithPath: top).standardizedFileURL.resolvingSymlinksInPath()
+                if let commonURL = commonDirectory(at: ancestor) {
+                    let projectURL = commonURL.lastPathComponent == ".git" ? commonURL.deletingLastPathComponent() : ancestor
                     value = ProjectIdentity(id: "git:" + commonURL.path, name: projectURL.lastPathComponent, path: projectURL.path)
                 }
                 break
@@ -31,17 +31,49 @@ final class ProjectResolver: @unchecked Sendable {
         cache[url.path] = (Date(), value)
         return value
     }
-    private func git(_ path: String, _ argument: String) -> String? {
-        let process = Process(), pipe = Pipe()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-        process.arguments = ["--no-optional-locks", "-C", path, "rev-parse", argument]
-        process.standardOutput = pipe; process.standardError = FileHandle.nullDevice
-        // A hostile/global Git configuration cannot redirect discovery through a pager.
-        process.environment = ["PATH": "/usr/bin:/bin", "GIT_OPTIONAL_LOCKS": "0", "GIT_TERMINAL_PROMPT": "0", "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null"]
-        do { try process.run() } catch { return nil }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile(); process.waitUntilExit()
-        guard process.terminationStatus == 0 else { return nil }
-        return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+    private func commonDirectory(at root: URL) -> URL? {
+        let fm = FileManager.default, marker = root.appendingPathComponent(".git")
+        var isDirectory: ObjCBool = false
+        guard fm.fileExists(atPath: marker.path, isDirectory: &isDirectory) else { return nil }
+        let gitDirectory: URL
+        if isDirectory.boolValue {
+            gitDirectory = marker.standardizedFileURL.resolvingSymlinksInPath()
+        } else {
+            guard let line = metadataLine(marker), line.hasPrefix("gitdir: ") else { return nil }
+            let path = String(line.dropFirst(8))
+            guard !path.isEmpty else { return nil }
+            gitDirectory = resolvePath(path, relativeTo: root)
+        }
+        let commonMarker = gitDirectory.appendingPathComponent("commondir")
+        let common: URL
+        if fm.fileExists(atPath: commonMarker.path) {
+            guard let path = metadataLine(commonMarker), !path.isEmpty else { return nil }
+            common = resolvePath(path, relativeTo: gitDirectory)
+        } else {
+            common = gitDirectory
+        }
+        guard fm.fileExists(atPath: gitDirectory.appendingPathComponent("HEAD").path),
+              fm.fileExists(atPath: common.appendingPathComponent("objects").path, isDirectory: &isDirectory),
+              isDirectory.boolValue,
+              fm.fileExists(atPath: common.appendingPathComponent("refs").path, isDirectory: &isDirectory),
+              isDirectory.boolValue else { return nil }
+        return common
+    }
+    private func resolvePath(_ path: String, relativeTo base: URL) -> URL {
+        (path.hasPrefix("/") ? URL(fileURLWithPath: path) : base.appendingPathComponent(path))
+            .standardizedFileURL.resolvingSymlinksInPath()
+    }
+    private func metadataLine(_ file: URL) -> String? {
+        // Read only small regular pointer files, never repository config or hooks.
+        let file = file.resolvingSymlinksInPath()
+        guard (try? file.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true,
+              let handle = try? FileHandle(forReadingFrom: file) else { return nil }
+        defer { try? handle.close() }
+        guard let data = try? handle.read(upToCount: 16_385), data.count <= 16_384,
+              let text = String(data: data, encoding: .utf8) else { return nil }
+        let line = text.trimmingCharacters(in: .newlines)
+        guard !line.contains("\n"), !line.contains("\r"), !line.contains("\0") else { return nil }
+        return line
     }
 }
 
