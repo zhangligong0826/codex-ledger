@@ -93,6 +93,15 @@ import Foundation
         defaults.set(Data("invalid".utf8), forKey: key)
         let corrupt = LedgerStore(); corrupt.newGoal(name: "Must not overwrite")
         expect(corrupt.goalEditor == nil && defaults.data(forKey: key) == Data("invalid".utf8), "unreadable goal storage is preserved, never silently overwritten")
+        store.loadDemo(); store.goalBook = restored; store.lifetime.warnings = ["Unreadable synthetic source"]
+        expect(!store.goalAmountsReady, "partial reads cannot freeze completion money")
+        let previousCompletion = store.goalBook.goals.first?.completedAt
+        store.completeGoal(first.id)
+        expect(store.goalBook.goals.first?.completedAt == previousCompletion, "completion is unchanged when records are incomplete")
+        let backups = try FileManager.default.contentsOfDirectory(at: GoalRecovery.directory, includingPropertiesForKeys: nil)
+        expect(backups.contains { $0.lastPathComponent.hasSuffix(".backup.json") }, "changes retain a portable recovery copy")
+        let beforeInvalidImport = store.goalBook.goals
+        expect(!store.importGoalBackup(Data("{}".utf8)) && store.goalBook.goals == beforeInvalidImport, "invalid restore does not overwrite goal data")
         print("\(checks)/\(checks) goal attribution, completion, persistence and CSV checks passed")
     }
 }

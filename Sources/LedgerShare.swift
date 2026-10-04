@@ -18,8 +18,28 @@ struct ShareSnapshot {
     let filtered: Bool
     let warning: Bool
     let priceDate: String
+    var capturedAt: Date = Date()
+    var rangeStart: Date = Date()
+    var rangeEnd: Date = Date()
+    var heatmapMetric: String = "tokens"
     static let downloadURL = "https://zhangligong0826.github.io/codex-ledger/"
     var monthlyUsage: TokenUsage { days.reduce(TokenUsage()) { $0 + $1.usage } }
     var monthlyCost: CostEstimate { days.reduce(CostEstimate()) { $0 + $1.cost } }
     var activeDays: Int { days.filter { $0.usage.total > 0 }.count }
+}
+
+
+extension ShareSnapshot {
+    func dateLabel(_ date: Date, time: Bool = false) -> String {
+        let formatter = DateFormatter(); formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(identifier: timezone) ?? .current
+        formatter.dateFormat = time ? "yyyy-MM-dd HH:mm" : "yyyy-MM-dd"
+        return formatter.string(from: date)
+    }
+    var calendarRange: String {
+        let end = rangeEnd.addingTimeInterval(-1)
+        if rangeStart < Date(timeIntervalSince1970: -2208988800) { return "≤ " + dateLabel(end) }
+        let start = dateLabel(rangeStart), finish = dateLabel(end)
+        return start == finish ? start : start + " — " + finish
+    }
 }

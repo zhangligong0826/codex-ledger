@@ -188,6 +188,7 @@ struct MonthlyActivityView: View {
     private var failed: Bool { store.activityReady && store.activity.allSatisfy { $0.responses == 0 } && !store.snapshot.warnings.isEmpty }
     private var pending: Bool { !store.activityReady }
     private var peak: Int64 { days.map { $0.usage.total }.max() ?? 0 }
+    private var peakCost: Decimal { days.map { $0.cost.totalUSD }.max() ?? 0 }
     private var total: Int64 { days.reduce(0) { $0 + $1.usage.total } }
     private var cost: CostEstimate { days.reduce(CostEstimate()) { $0 + $1.cost } }
     var body: some View {
@@ -214,7 +215,7 @@ struct MonthlyActivityView: View {
                                 if days.indices.contains(index) {
                                     let day = days[index]
                                     RoundedRectangle(cornerRadius: 2)
-                                        .fill(color(pending || failed ? 0 : day.intensity(peak: peak)))
+                                        .fill(color(pending || failed ? 0 : store.heatmapMetric == "cost" ? day.costIntensity(peak: peakCost) : day.intensity(peak: peak)))
                                         .frame(width: 10, height: 10)
                                         .help(tooltip(day)).accessibilityLabel(tooltip(day))
                                 } else { Color.clear.frame(width: 10, height: 10).accessibilityHidden(true) }
@@ -235,12 +236,12 @@ struct MonthlyActivityView: View {
                     HStack(spacing: 3) {
                         Text(L("少"))
                         ForEach(0..<5) { level in RoundedRectangle(cornerRadius: 1.5).fill(color(level)).frame(width: 7, height: 7) }
-                        Text(L("多"))
+                        Text(L("多")); Text(L(store.heatmapMetric == "cost" ? "金额" : "token"))
                     }.font(.system(size: 8)).foregroundStyle(.secondary).accessibilityHidden(true)
                 }.frame(maxWidth: .infinity, alignment: .leading)
             }
         }.padding(10).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
-            .help(L("颜色深浅表示每天的 token 用量，以近 30 天单日峰值分为四档；悬停查看日期、预估金额和用量。"))
+            .help(L("颜色深浅表示所选指标的每日相对用量；悬停查看日期、预估金额和 token。未知价格不视为零成本。"))
     }
     private func color(_ level: Int) -> Color {
         level == 0 ? Color.primary.opacity(0.065) : Color(red: 0.15, green: 0.63, blue: 0.34).opacity(0.25 + Double(level) * 0.1875)
@@ -297,9 +298,9 @@ struct DashboardView: View {
                     if store.page != .goals {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 145))], spacing: 10) {
                         SummaryCard(title: L("总 token"), value: store.contextReady ? compactTokens(store.contextUsage.total) : store.rangeReady ? "—" : "…", subtitle: L("输入 + 输出 · 含缓存"), symbol: "chart.bar")
-                        SummaryCard(title: L("任务轮次"), value: store.contextReady ? "\(store.contextTasks.count)" : store.rangeReady ? "—" : "…", subtitle: store.rangeReady ? L("\(store.contextTasks.filter(\.finished).count) 轮已结束") : L("正在整理日志…"), symbol: "square.stack")
-                        SummaryCard(title: L("关联文件"), value: store.contextReady ? "\(Set(store.contextTasks.flatMap(\.artifacts)).count)" : store.rangeReady ? "—" : "…", subtitle: L("已存在的本地文件"), symbol: "doc.on.doc")
-                        SummaryCard(title: L("使用模型"), value: store.contextReady ? "\(Set(store.contextTasks.flatMap(\.models)).subtracting(["未知模型"]).count)" : store.rangeReady ? "—" : "…", subtitle: L("已识别的不同模型"), symbol: "cpu")
+                        SummaryCard(title: L("任务轮次"), value: store.contextReady ? "\(store.selectedTasks.count)" : store.rangeReady ? "—" : "…", subtitle: store.rangeReady ? L("\(store.selectedTasks.filter(\.finished).count) 轮已结束") : L("正在整理日志…"), symbol: "square.stack")
+                        SummaryCard(title: L("关联文件"), value: store.contextReady ? "\(Set(store.selectedTasks.flatMap(\.artifacts)).count)" : store.rangeReady ? "—" : "…", subtitle: L("已存在的本地文件"), symbol: "doc.on.doc")
+                        SummaryCard(title: L("使用模型"), value: store.contextReady ? "\(Set(store.selectedTasks.flatMap(\.models)).subtracting(["未知模型"]).count)" : store.rangeReady ? "—" : "…", subtitle: L("已识别的不同模型"), symbol: "cpu")
                     }
                     UsageMetrics(usage: store.contextUsage, cost: store.contextCost, pending: !store.contextReady)
                     } else if store.selectedGoalID != nil {
@@ -330,7 +331,7 @@ struct DashboardView: View {
     var selectedRangeSummary: String {
         let prefix = L("所选日期") + " · "
         guard store.contextReady else { return prefix + "—" }
-        let turns = L("\(store.contextTasks.count) 个任务")
+        let turns = L("\(store.selectedTasks.count) 个任务")
         let tokens = compactTokens(store.contextUsage.total) + " tokens"
         return prefix + turns + " · " + tokens
     }
@@ -503,6 +504,16 @@ struct DashboardView: View {
             VStack(alignment: .leading, spacing: 18) {
                 VStack(alignment: .leading, spacing: 12) {
                     Text(L("数据来源")).font(.system(size: 16, weight: .semibold))
+                    Link(L("获取新版本 / 安装帮助"), destination: URL(string: ShareSnapshot.downloadURL)!)
+                    HStack {
+                        Button(L("导出账本备份")) { store.exportGoalBackup() }.disabled(!store.goalBookAvailable)
+                        Button(L("导入账本")) { store.chooseGoalBackup() }
+                        Button(L("打开恢复备份")) { NSWorkspace.shared.open(GoalRecovery.directory) }
+                    }
+                    Text(L("备份包含目标名称和归属路径；请保存在私人位置。导入前会保留当前账本。" )).font(.system(size: 11)).foregroundStyle(.secondary)
+                    Picker(L("热力图颜色"), selection: Binding(get: { store.heatmapMetric }, set: store.setHeatmapMetric)) {
+                        Text(L("token")).tag("tokens"); Text(L("金额")).tag("cost")
+                    }.pickerStyle(.segmented).frame(width: 220)
                     Text(store.sourcePath).font(.system(size: 12, design: .monospaced)).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
                     HStack { Button(L("选择 Codex 数据目录…")) { store.chooseDirectory() }; Button(L("在 Finder 中显示")) { NSWorkspace.shared.selectFile(store.sourcePath, inFileViewerRootedAtPath: "") } }
                     Text(L("按需读取 sessions 和 archived_sessions 中的日志。每 30 秒检查一次，只重新解析发生变化的文件。")).font(.system(size: 12)).foregroundStyle(.secondary)

@@ -2,6 +2,18 @@ import Foundation
 extension CoreTests {
     static func sharedChecks(folder: URL) throws {
         let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Common/Fixtures")
+        let fixtureRoot = fixtures.deletingLastPathComponent()
+        let archive = try GoalArchive.decode(Data(contentsOf: fixtureRoot.appendingPathComponent("goal-backup-fixture.json")))
+        expect(archive.goals.first?.completionPriceDate == "2026-10-01" && archive.goals.first?.completionCost?.totalUSD == Decimal(string: "0.151456789") && archive.goals.first?.budgetUSD == Decimal(string: "10.25"), "portable backup preserves exact Decimal, budget and frozen price date")
+        if let path = ProcessInfo.processInfo.environment["CODEX_LEDGER_INTEROP_INPUT"] {
+            let external = try GoalArchive.decode(Data(contentsOf: URL(fileURLWithPath: path)))
+            expect(external.goals.first?.completionCost == archive.goals.first?.completionCost && external.goals.first?.budgetUSD == archive.goals.first?.budgetUSD, "C# -> Swift precise backup accepted")
+        }
+        if let path = ProcessInfo.processInfo.environment["CODEX_LEDGER_SWIFT_BACKUP_OUTPUT"] { try GoalArchive.encode(archive).write(to: URL(fileURLWithPath: path)) }
+        let roundtrip = try GoalArchive.decode(GoalArchive.encode(archive))
+        expect(roundtrip.bindings == archive.bindings && roundtrip.goals.first?.completionCost == archive.goals.first?.completionCost, "portable backup roundtrip")
+        try GoalArchive.encode(archive).write(to: folder.appendingPathComponent("swift-goal-backup.json"))
+        expect(GoalBudget.parse("0.001") == Decimal(string: "0.001") && GoalBudget.parse("-1") == nil && GoalBudget.parse("NaN") == nil, "budget decimal validation")
         let parser = LogParser(), scanner = LedgerScanner(timezone: TimeZone(secondsFromGMT: 0)!)
         let scopes: [String: DateScope] = ["today": .today, "yesterday": .yesterday, "30d": .month, "all": .history]
         for file in try FileManager.default.contentsOfDirectory(at: fixtures, includingPropertiesForKeys: nil) where file.pathExtension == "json" {
@@ -17,6 +29,7 @@ extension CoreTests {
                 let interval = scopes[name]!.interval(now: now, calendar: scanner.calendar)
                 let snap = scanner.snapshot(logs: logs, start: interval.start, end: interval.end)
                 func number(_ key: String) -> Int64 { (expected[key] as! NSNumber).int64Value }
+                if let complete = value["complete"] as? Bool { expect(snap.isComplete == complete, "mixed-format integrity is shared across platforms") }
                 let prefix = file.lastPathComponent + "/" + name
                 expect(snap.usage.total == number("total") && snap.usage.cached == number("cached") && snap.usage.reasoning == number("reasoning"), prefix + " shared token subsets")
                 expect(snap.tasks.count == Int(number("turns")) && snap.tasks.reduce(0) { $0 + $1.responses } == Int(number("responses")), prefix + " shared turns and response deduplication")

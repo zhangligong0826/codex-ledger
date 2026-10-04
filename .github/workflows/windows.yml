@@ -20,6 +20,8 @@ jobs:
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
         with:
           dotnet-version: '10.0.x'
+      - name: Version metadata
+        run: python distribution/version.py
       - name: Accounting and shared fixtures
         run: dotnet run --project Windows/Ledger.Tests -c Release
       - name: UI renders and behavior checks with synthetic data
@@ -33,7 +35,9 @@ jobs:
       - name: Package both architectures
         shell: pwsh
         run: ./Windows/package.ps1
-      - name: User install, upgrade, diagnostic and uninstall
+      - name: User install, prior-beta upgrade, storage, diagnostic and uninstall
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
           $dir = "$env:RUNNER_TEMP/ledger-installed"
@@ -41,11 +45,32 @@ jobs:
           New-Item -ItemType Directory -Force $dataDir | Out-Null
           $sentinel = Join-Path $dataDir 'ci-preserve-user-data.txt'
           'ledger-user-data' | Set-Content $sentinel
-          $installer = 'dist/Codex-Ledger-1.2.0-beta.2-Windows-win-x64-Setup.exe'
-          1..2 | ForEach-Object {
-            $p = Start-Process $installer -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=$dir" -Wait -PassThru
-            if ($p.ExitCode -ne 0) { throw 'Installer/upgrade failed' }
-          }
+          $version = (Get-Content Common/version.json -Raw | ConvertFrom-Json).release
+          $installer = "dist/Codex-Ledger-$version-Windows-win-x64-Setup.exe"
+          $prior = "$env:RUNNER_TEMP/prior-beta"
+          New-Item -ItemType Directory -Force $prior | Out-Null
+          gh release download v1.2.0-beta.2 --repo zhangligong0826/codex-ledger --pattern 'Codex-Ledger-1.2.0-beta.2-Windows-win-x64-Setup.exe' --dir $prior
+          if ($LASTEXITCODE -ne 0) { throw 'Prior beta download failed' }
+          $old = Join-Path $prior 'Codex-Ledger-1.2.0-beta.2-Windows-win-x64-Setup.exe'
+          if ((Get-FileHash $old -Algorithm SHA256).Hash.ToLower() -ne '63d8ea40bca6dc814887bd3450c176258a806e539515bbd3b01f134476b9db8f') { throw 'Prior beta checksum mismatch' }
+          $p = Start-Process $old -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=$dir" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw 'Prior beta installation failed' }
+          $source = [IO.Path]::GetFullPath("$env:RUNNER_TEMP/empty-codex")
+          New-Item -ItemType Directory -Force "$source/sessions" | Out-Null
+          $prefsPath = Join-Path $dataDir 'preferences.json'
+          @{ Language='zh'; Appearance='dark'; Source=$source; LaunchAtLogin=$false; Categories=@{} } | ConvertTo-Json | Set-Content $prefsPath -Encoding utf8
+          $hash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($source)))
+          $bookPath = Join-Path $dataDir "goals-$hash.json"
+          @{ Version=1; Goals=@(@{ID='upgrade-goal';Name='Synthetic upgrade goal';CreatedAt='2026-10-04T00:00:00Z';CompletedAt='2026-10-04T01:00:00Z';CompletionCost=@{InputUSD=0.123456789;CachedUSD=0.025;OutputUSD=0.003;PricedTokens=100;UnpricedTokens=0;UnverifiedContextTokens=0};CompletionUsage=@{Input=90;Cached=10;Output=10;Reasoning=2};CompletionPriceDate='2026-10-01'});Bindings=@{'conversation:upgrade-chat'='upgrade-goal'} } | ConvertTo-Json -Depth 10 | Set-Content $bookPath -Encoding utf8
+          $bookBefore = (Get-FileHash $bookPath).Hash
+          $prefsBefore = (Get-FileHash $prefsPath).Hash
+          $p = Start-Process $installer -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=$dir" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw 'Beta.2 to current upgrade failed' }
+          $p = Start-Process "$dir/CodexLedger.exe" -ArgumentList '--check-storage' -Wait -PassThru -RedirectStandardOutput "$env:RUNNER_TEMP/storage-check.json"
+          if ($p.ExitCode -ne 0) { throw 'Upgraded storage validation failed' }
+          $storage = Get-Content "$env:RUNNER_TEMP/storage-check.json" -Raw | ConvertFrom-Json
+          if ($storage.goals -ne 1 -or $storage.completed -ne 1 -or $storage.language -ne 'zh' -or $storage.completionUSD -ne 0.151456789 -or $storage.completionPriceDate -ne '2026-10-01') { throw 'Upgrade did not preserve goal snapshot/preferences' }
+          if ((Get-FileHash $bookPath).Hash -ne $bookBefore -or (Get-FileHash $prefsPath).Hash -ne $prefsBefore) { throw 'Original storage was changed during upgrade' }
           New-Item -ItemType Directory -Force "$env:RUNNER_TEMP/empty-codex/sessions" | Out-Null
           $env:CODEX_LEDGER_SOURCE = "$env:RUNNER_TEMP/empty-codex"
           $p = Start-Process "$dir/CodexLedger.exe" -ArgumentList '--diagnose', '--scope=all' -Wait -PassThru -RedirectStandardOutput "$env:RUNNER_TEMP/diagnostic.json"
@@ -53,7 +78,7 @@ jobs:
           $data = Get-Content "$env:RUNNER_TEMP/diagnostic.json" -Raw | ConvertFrom-Json
           if ($data.total -ne 0 -or $data.dailyUsage.Count -ne 30) { throw 'Empty-source diagnostic failed' }
           $portable = "$env:RUNNER_TEMP/ledger-portable"
-          Expand-Archive 'dist/Codex-Ledger-1.2.0-beta.2-Windows-win-x64-Portable.zip' $portable
+          Expand-Archive "dist/Codex-Ledger-$version-Windows-win-x64-Portable.zip" $portable
           foreach ($file in @('coreclr.dll', 'hostpolicy.dll', 'CodexLedger.exe', 'licenses')) {
             if (-not (Test-Path "$portable/$file")) { throw "Missing self-contained file: $file" }
           }
@@ -63,6 +88,7 @@ jobs:
           $p = Start-Process "$dir/unins000.exe" -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -Wait -PassThru
           if ($p.ExitCode -ne 0 -or (Test-Path "$dir/CodexLedger.exe")) { throw 'Uninstall failed' }
           if ((Get-Content $sentinel -Raw).Trim() -ne 'ledger-user-data') { throw 'User data was not preserved' }
+          if ((Get-FileHash $bookPath).Hash -ne $bookBefore -or (Get-FileHash $prefsPath).Hash -ne $prefsBefore) { throw 'Uninstall changed original ledger/preferences' }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
@@ -72,6 +98,7 @@ jobs:
             ${{ runner.temp }}/ui-checks.txt
             ${{ runner.temp }}/ui-errors.txt
             ${{ runner.temp }}/diagnostic.json
+            ${{ runner.temp }}/storage-check.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: windows-packages

@@ -90,3 +90,24 @@ enum LedgerPricing {
          String(cost.unverifiedContextTokens), verifiedDate, "Standard API estimate · USD"]
     }
 }
+
+
+extension KeyedDecodingContainer {
+    func preciseDecimal(forKey key: Key) throws -> Decimal {
+        if let text = try? decode(String.self, forKey: key) {
+            guard let value = Decimal(string: text, locale: Locale(identifier: "en_US_POSIX")), !value.isNaN else { throw CocoaError(.fileReadCorruptFile) }
+            return value
+        }
+        return try decode(Decimal.self, forKey: key)
+    }
+}
+
+extension CostEstimate {
+    private enum CodingKeys: String, CodingKey { case inputUSD, cachedUSD, outputUSD, pricedTokens, unpricedTokens, unverifiedContextTokens }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        inputUSD = try c.preciseDecimal(forKey: .inputUSD); cachedUSD = try c.preciseDecimal(forKey: .cachedUSD); outputUSD = try c.preciseDecimal(forKey: .outputUSD)
+        pricedTokens = try c.decode(Int64.self, forKey: .pricedTokens); unpricedTokens = try c.decode(Int64.self, forKey: .unpricedTokens); unverifiedContextTokens = try c.decode(Int64.self, forKey: .unverifiedContextTokens)
+        guard inputUSD >= 0, cachedUSD >= 0, outputUSD >= 0, pricedTokens >= 0, unpricedTokens >= 0, unverifiedContextTokens >= 0 else { throw CocoaError(.fileReadCorruptFile) }
+    }
+}

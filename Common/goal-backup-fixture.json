@@ -1,0 +1,36 @@
+{
+  "format": "codex-ledger-goals",
+  "version": 1,
+  "exportedAt": "2026-10-05T01:00:00.123Z",
+  "book": {
+    "version": 1,
+    "goals": [
+      {
+        "id": "portable-goal",
+        "name": "Portable synthetic goal",
+        "createdAt": "2026-10-04T10:00:00.000Z",
+        "completedAt": "2026-10-04T12:00:00.000Z",
+        "budgetUSD": 10.25,
+        "completionCost": {
+          "inputUSD": 0.123456789,
+          "cachedUSD": 0.025,
+          "outputUSD": 0.003,
+          "pricedTokens": 100,
+          "unpricedTokens": 0,
+          "unverifiedContextTokens": 0
+        },
+        "completionUsage": {
+          "input": 90,
+          "cached": 10,
+          "output": 10,
+          "reasoning": 2
+        },
+        "completionPriceDate": "2026-10-01"
+      }
+    ],
+    "bindings": {
+      "conversation:portable-chat": "portable-goal",
+      "turn:portable-excluded": "__unassigned__"
+    }
+  }
+}

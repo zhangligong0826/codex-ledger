@@ -48,6 +48,7 @@ import UniformTypeIdentifiers
     let title: String
     let language: String
     private func T(_ key: String) -> String { language == "en" ? LedgerText.english[key] ?? key : key }
+    private var peakCost: Decimal { value.days.map { $0.cost.totalUSD }.max() ?? 0 }
     private var peak: Int64 { value.days.map { $0.usage.total }.max() ?? 0 }
     private var offset: Int {
         var calendar = Calendar.current; calendar.timeZone = TimeZone(identifier: value.timezone) ?? .current
@@ -60,8 +61,9 @@ import UniformTypeIdentifiers
     private let greens = [Color.primary.opacity(0.07), Color(red: 0.61, green: 0.82, blue: 0.66), Color(red: 0.29, green: 0.66, blue: 0.43), Color(red: 0.15, green: 0.49, blue: 0.31), Color(red: 0.07, green: 0.34, blue: 0.23)]
     private var note: String {
         var parts = [T("API 成本估算，非实际账单"), value.priceDate]
-        if value.warning { parts.append(T("部分日志不可读")) }
-        if value.cost.unpricedTokens > 0 || value.monthlyCost.unpricedTokens > 0 { parts.append(T("含未计价用量")) }
+        if value.warning { parts.append(T("记录不完整")) }
+        if value.cost.unpricedTokens > 0 || value.monthlyCost.unpricedTokens > 0 || (value.completionCost?.unpricedTokens ?? 0) > 0 { parts.append(T("含未计价用量")) }
+        parts.append(T("生成于") + " " + value.dateLabel(value.capturedAt, time: true))
         return parts.joined(separator: " · ")
     }
     var body: some View {
@@ -73,6 +75,8 @@ import UniformTypeIdentifiers
             if let cost = value.completionCost {
                 HStack { Text(T("完成时")); Spacer(); Text(money(cost) + " USD").bold().lineLimit(1).minimumScaleFactor(0.3) }
                     .font(.system(size: 10)).frame(width: 316, height: 14).offset(x: 22, y: 221)
+                Text((value.completionDate.map { value.dateLabel($0) } ?? "") + " · " + T("完成时价格") + " " + (value.completionPriceDate ?? T("单价未知")))
+                    .font(.system(size: 7)).foregroundStyle(.secondary).lineLimit(1).frame(width: 316, alignment: .leading).offset(x: 22, y: 237)
             }
             heatmap.offset(x: 22, y: value.completionCost == nil ? 232 : 250)
             footer.frame(width: 316, height: 59, alignment: .topLeading).offset(x: 22, y: 397)
@@ -91,7 +95,7 @@ import UniformTypeIdentifiers
         VStack(alignment: .leading, spacing: 5) {
             Text(T("预估 API 花费") + " · USD").font(.system(size: 10)).foregroundStyle(.secondary)
             Text(money(value.cost)).font(.system(size: 38, weight: .semibold, design: .rounded)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.35)
-            Text(value.range + (value.filtered ? " · " + T("已筛选") : "")).font(.system(size: 10)).foregroundStyle(.secondary)
+            Text(value.range + " · " + value.calendarRange + (value.filtered ? " · " + T("已筛选") : "")).font(.system(size: 10)).foregroundStyle(.secondary)
             HStack(spacing: 12) {
                 Text(compactTokens(value.usage.total) + " tokens")
                 Text(String(value.turns) + " " + T("任务轮次"))
@@ -102,7 +106,7 @@ import UniformTypeIdentifiers
     private var heatmap: some View {
         VStack(alignment: .leading, spacing: 5) {
             HStack {
-                Text(T("近 30 天")).font(.system(size: 11, weight: .semibold))
+                Text(T("近 30 天") + " · " + T(value.heatmapMetric == "cost" ? "金额" : "token")).font(.system(size: 11, weight: .semibold))
                 Spacer()
                 Text(String(value.activeDays) + "/30 " + T("活跃天数")).font(.system(size: 9)).foregroundStyle(.secondary)
             }
@@ -130,7 +134,7 @@ import UniformTypeIdentifiers
     }
     private func cellColor(_ index: Int) -> Color {
         guard value.days.indices.contains(index) else { return .clear }
-        return greens[value.days[index].intensity(peak: peak)]
+        return greens[value.heatmapMetric == "cost" ? value.days[index].costIntensity(peak: peakCost) : value.days[index].intensity(peak: peak)]
     }
     private var footer: some View {
         HStack(spacing: 10) {
@@ -145,7 +149,7 @@ import UniformTypeIdentifiers
         }
     }
     private func dayLabel(_ date: Date) -> String {
-        let formatter = DateFormatter(); formatter.locale = Locale(identifier: "en_US_POSIX"); formatter.dateFormat = "MM/dd"
+        let formatter = DateFormatter(); formatter.locale = Locale(identifier: "en_US_POSIX"); formatter.dateFormat = "yyyy-MM-dd"
         formatter.timeZone = TimeZone(identifier: value.timezone) ?? .current; return formatter.string(from: date)
     }
 }

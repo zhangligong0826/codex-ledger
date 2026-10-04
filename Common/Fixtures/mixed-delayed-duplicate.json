@@ -1,0 +1,164 @@
+{
+  "now": "2026-10-04T12:00:00Z",
+  "logs": [
+    [
+      {
+        "type": "session_meta",
+        "payload": {
+          "id": "mixed-fixture",
+          "cwd": "/synthetic/mixed-project"
+        },
+        "timestamp": "2026-10-04T10:00:00Z"
+      },
+      {
+        "type": "event_msg",
+        "payload": {
+          "type": "task_started",
+          "turn_id": "old"
+        },
+        "timestamp": "2026-10-04T10:00:00Z"
+      },
+      {
+        "type": "turn_context",
+        "payload": {
+          "turn_id": "old",
+          "model": "gpt-5.4"
+        },
+        "timestamp": "2026-10-04T10:00:00Z"
+      },
+      {
+        "type": "event_msg",
+        "payload": {
+          "type": "token_count",
+          "info": {
+            "total_token_usage": {
+              "input_tokens": 100,
+              "output_tokens": 10,
+              "cached_input_tokens": 0,
+              "reasoning_output_tokens": 2
+            },
+            "last_token_usage": {
+              "input_tokens": 100,
+              "output_tokens": 10,
+              "cached_input_tokens": 0,
+              "reasoning_output_tokens": 2
+            }
+          }
+        },
+        "timestamp": "2026-10-04T10:00:00Z"
+      },
+      {
+        "type": "token_usage_record",
+        "payload": {
+          "thread_id": "mixed-fixture",
+          "turn_id": "old",
+          "response_id": "modern-old",
+          "model": "gpt-5.4",
+          "usage": {
+            "input_tokens": 100,
+            "output_tokens": 10,
+            "cached_input_tokens": 0,
+            "reasoning_output_tokens": 2
+          }
+        },
+        "timestamp": "2026-10-04T10:01:00Z"
+      }
+    ],
+    [
+      {
+        "type": "session_meta",
+        "payload": {
+          "id": "mixed-fixture",
+          "cwd": "/synthetic/mixed-project"
+        },
+        "timestamp": "2026-10-04T10:00:00Z"
+      },
+      {
+        "type": "event_msg",
+        "payload": {
+          "type": "task_started",
+          "turn_id": "old"
+        },
+        "timestamp": "2026-10-04T10:00:00Z"
+      },
+      {
+        "type": "turn_context",
+        "payload": {
+          "turn_id": "old",
+          "model": "gpt-5.4"
+        },
+        "timestamp": "2026-10-04T10:00:00Z"
+      },
+      {
+        "type": "event_msg",
+        "payload": {
+          "type": "token_count",
+          "info": {
+            "total_token_usage": {
+              "input_tokens": 100,
+              "output_tokens": 10,
+              "cached_input_tokens": 0,
+              "reasoning_output_tokens": 2
+            },
+            "last_token_usage": {
+              "input_tokens": 100,
+              "output_tokens": 10,
+              "cached_input_tokens": 0,
+              "reasoning_output_tokens": 2
+            }
+          }
+        },
+        "timestamp": "2026-10-04T10:00:00Z"
+      },
+      {
+        "type": "token_usage_record",
+        "payload": {
+          "thread_id": "mixed-fixture",
+          "turn_id": "old",
+          "response_id": "modern-old",
+          "model": "gpt-5.4",
+          "usage": {
+            "input_tokens": 100,
+            "output_tokens": 10,
+            "cached_input_tokens": 0,
+            "reasoning_output_tokens": 2
+          }
+        },
+        "timestamp": "2026-10-04T10:01:00Z"
+      }
+    ]
+  ],
+  "expected": {
+    "today": {
+      "total": 110,
+      "cached": 0,
+      "reasoning": 2,
+      "turns": 1,
+      "responses": 1,
+      "usd": "0.0004",
+      "priced": 110,
+      "unpriced": 0
+    },
+    "30d": {
+      "total": 110,
+      "cached": 0,
+      "reasoning": 2,
+      "turns": 1,
+      "responses": 1,
+      "usd": "0.0004",
+      "priced": 110,
+      "unpriced": 0
+    },
+    "all": {
+      "total": 110,
+      "cached": 0,
+      "reasoning": 2,
+      "turns": 1,
+      "responses": 1,
+      "usd": "0.0004",
+      "priced": 110,
+      "unpriced": 0
+    }
+  },
+  "complete": false
+}

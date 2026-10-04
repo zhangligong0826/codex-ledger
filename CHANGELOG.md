@@ -1,3 +1,12 @@
+## 1.2.0-beta.3 — 2026-10-05
+
+- Reconcile mixed counter/response logs; flag incomplete records and block completion snapshots when coverage is incomplete.
+- Align search scope across projects, conversations, models, summaries, shares and CSV.
+- Preserve capture time, actual dates, timezone and historical completion-price provenance.
+- Validate storage, retain recovery copies and support portable goal-book export/import with exact decimal strings.
+- Add optional goal budgets and cost/token heatmap intensity; prioritize completed outcome amounts.
+- Restore the running Windows instance on repeat launch. Centralize version metadata and test a genuine Beta.2 upgrade with retained settings and frozen amounts.
+
 # Changelog
 
 ## 1.2.0-beta.2

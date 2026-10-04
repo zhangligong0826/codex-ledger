@@ -1,19 +1,15 @@
-Beta.2 fixes unreadable goal-book handling: goal-dependent amounts become unknown and sharing/export is disabled instead of producing a zero-cost goal card. Independent source usage remains available. CSV is frozen before the save dialog, and share snapshots own immutable daily data. Beta.1 assets remain unchanged.
+Codex Ledger 1.2.0-beta.3 improves the reliability of local goal-cost accounting on macOS and Windows.
 
-Codex Ledger 1.2.0-beta.2 brings native macOS menu-bar and Windows system-tray accounting together.
+- Mixed-format log reconciliation and explicit incomplete-record warnings; incomplete sources cannot freeze a goal completion amount.
+- Consistent project/conversation/model search scope across summaries, CSV and share cards. Captured date ranges, timezone and historical completion price dates are retained.
+- Optional USD goal budgets, cost/token heatmap intensity and prominent frozen completion amounts.
+- Validated goal-book backup/import with recovery copies and exact-decimal portable archives.
+- Windows repeated launch opens the existing instance. Genuine Beta.2 upgrade tests preserve preferences, assignments and frozen completion costs.
 
-- Privacy-first 1080 × 1440 share cards with estimated USD cost, tokens, 30-day heatmap, completion snapshot and installation QR. Names and paths are hidden by default; preview before sharing.
-- Capture the current app content, copy/save PNG, or export scoped CSV.
-- Windows 11 x64 and ARM64 self-contained installers and portable ZIPs. Includes goals, projects, conversations, turns, models, search, bilingual UI and system/light/dark appearance.
-- Shared offline price catalog and synthetic accounting fixtures; logs and title metadata are read-only. Costs are API estimates, not subscription bills.
+Download: https://zhangligong0826.github.io/codex-ledger/
 
-Install: https://zhangligong0826.github.io/codex-ledger/
+Mac: universal DMG/ZIP or `brew install --cask zhangligong0826/tap/codex-ledger`. Windows 11: self-contained x64/ARM64 installers and portable ZIPs.
 
-Mac: open the universal DMG and drag Codex Ledger to Applications, or use `brew install --cask zhangligong0826/tap/codex-ledger`.
-Windows: download the installer for your architecture. Installation is per-user; no separate .NET installation is required. Portable ZIPs are also available.
+API cost estimates are not subscription bills. Data and share rendering stay local. This free beta is ad-hoc signed on macOS and unsigned on Windows, without Apple notarization; follow system first-launch confirmations. Do not disable system security protections.
 
-This free beta is ad-hoc signed on macOS and unsigned on Windows, without Apple notarization. Follow the documented first-launch steps and your device's policy. Never disable system security checks to install it.
-
-Validation: 247 macOS accounting/goal/navigation checks plus synthetic share renders and QR/privacy checks on all three Mac CI environments; 87 Windows x64 hosted-runner accounting checks, localized UI renders, clipboard/save checks, portable execution and installer/upgrade/uninstall/data-retention tests. Windows ARM64 is cross-built, without native ARM64 execution. Physical Windows hardware acceptance and installed Mac share-dialog/clipboard interaction are not verified. See QA.md for the full evidence and limits.
-
-SHA-256 checksums for all six binary assets are in CHECKSUMS.txt. Existing logs, preferences and goal attribution are preserved by upgrades; uninstall preserves user data.
+Verification details are in QA.md. Windows runtime/UI/install checks use hosted x64 CI; ARM64 is cross-built, without native ARM64 execution. Physical Windows device acceptance and installed Mac share-dialog interaction remain unverified. All six binary SHA-256 values are in CHECKSUMS.txt.

@@ -89,7 +89,7 @@ public sealed class LedgerScanner {
             var cwd=info?.WorkingDirectory??"";
             turns.Add(new(id,info?.SessionID??first.SessionID,title[..Math.Min(200,title.Length)],category,samples.Aggregate(new TokenUsage(),(a,s)=>a+s.Usage),first.Date,samples.Max(s=>s.Date),info?.Finished??false,samples.Count,samples.Count(s=>childIDs.Contains(s.ID)),cwd,resolver.Resolve(cwd),samples.ToArray(),artifacts));
         }
-        return new(turns.OrderByDescending(t=>t.Usage.Total).ThenBy(t=>t.ID,StringComparer.Ordinal).ToArray(),warnings??[],logs.Count,logs.Sum(l=>l.Malformed));
+        return new(turns.OrderByDescending(t=>t.Usage.Total).ThenBy(t=>t.ID,StringComparer.Ordinal).ToArray(),(warnings??[]).Concat(logs.SelectMany(l=>l.IntegrityWarnings)).Concat(logs.Any(l=>l.Malformed>0)?new[]{"部分完整日志行损坏，用量可能不完整。"}:Array.Empty<string>()).Distinct().ToArray(),logs.Count,logs.Sum(l=>l.Malformed)){CapturedAt=now};
     }
     public IReadOnlyList<DailyUsage> Daily(IReadOnlyList<LedgerTurn> month,DateTimeOffset now) {
         var start=DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now,Zone).Date).AddDays(-29);

@@ -6,9 +6,9 @@
 
 ## 安装免费测试版
 
-**1.2.0-beta.2**：macOS 14 及以上（Apple 芯片／Intel），Windows 11（x64／ARM64）。
+**1.2.0-beta.3**：macOS 14 及以上（Apple 芯片／Intel），Windows 11（x64／ARM64）。
 
-Mac：从[发布页](https://github.com/zhangligong0826/codex-ledger/releases/tag/v1.2.0-beta.2)下载 universal DMG，打开后把 Codex Ledger 拖到 Applications，启动后点击菜单栏图标。也可以使用 Homebrew：
+Mac：从[发布页](https://github.com/zhangligong0826/codex-ledger/releases/tag/v1.2.0-beta.3)下载 universal DMG，打开后把 Codex Ledger 拖到 Applications，启动后点击菜单栏图标。也可以使用 Homebrew：
 
 ```sh
 brew install --cask zhangligong0826/tap/codex-ledger
@@ -57,3 +57,11 @@ MIT 开源。Mac 构建需要 Apple Command Line Tools；原生分层图标需�
 下图使用模拟数据。卡片在本机生成，默认隐藏名称和路径，二维码始终指向固定下载页。
 
 ![模拟数据分享卡片](docs/previews/share-card.png)
+
+## Beta.3 维护改进
+
+目标可设置可选 USD 预算，已完成目标优先显示冻结的完成金额；未完成目标以历史累计估算比较预算。近 30 天热力图可在设置中切换 token／金额强度。未知单价和不完整记录不会被当作零花费。
+
+设置提供本机目标账本导出、校验导入及恢复备份入口。修改前保留恢复副本，每个来源保留最近 20 份有效备份；损坏原始数据保留为二进制恢复副本。备份含私人名称和归属规则，请妥善保管；跨机器移动项目路径可能需要重新关联。
+
+混合新旧日志按计数区间核对，无法安全对齐或存在损坏完整记录时提示数据不完整，并阻止冻结目标完成金额。分享卡片和 CSV 标明实际日期区间、采集时间、时区及读取完整性；已完成金额保留原价格日期。

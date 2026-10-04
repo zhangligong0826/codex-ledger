@@ -1,7 +1,9 @@
 #!/bin/zsh
 set -euo pipefail
 PROJECT_DIR="${0:A:h}"
+python3 "$PROJECT_DIR/distribution/version.py"
 TEST_BUILD="$PROJECT_DIR/.build/tests"
+export CODEX_LEDGER_BACKUP_DIR="${CODEX_LEDGER_BACKUP_DIR:-$TEST_BUILD/recovery}"
 mkdir -p "$TEST_BUILD" "$PROJECT_DIR/.build/swift-cache"
 xcrun swiftc -swift-version 5 -module-cache-path "$PROJECT_DIR/.build/swift-cache" \
   "$PROJECT_DIR/Sources/LedgerPricing.swift" "$PROJECT_DIR/Sources/LedgerCore.swift" "$PROJECT_DIR/Sources/LedgerAnalytics.swift" "$PROJECT_DIR/Sources/LedgerGoals.swift" "$PROJECT_DIR/Sources/LedgerShare.swift" "$PROJECT_DIR/Sources/LedgerDemo.swift" "$PROJECT_DIR/Sources/Localization.swift" "$PROJECT_DIR/Tests/CoreTests.swift" "$PROJECT_DIR/Tests/AnalyticsTests.swift" "$PROJECT_DIR/Tests/PricingTests.swift" "$PROJECT_DIR/Tests/SharedTests.swift" -lsqlite3 -o "$TEST_BUILD/CoreTests"

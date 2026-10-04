@@ -1,6 +1,7 @@
 #!/bin/zsh
 set -euo pipefail
 PROJECT_DIR="${0:A:h}"
+python3 "$PROJECT_DIR/distribution/version.py"
 OUTPUT_DIR="${CODEX_LEDGER_OUTPUT_DIR:-$PROJECT_DIR/dist}"
 BUILD_ARCH="${CODEX_LEDGER_ARCH:-universal}"
 NATIVE_ICON="${CODEX_LEDGER_NATIVE_ICON:-auto}"

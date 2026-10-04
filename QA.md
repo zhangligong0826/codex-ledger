@@ -103,3 +103,14 @@ The custom Homebrew tap deliberately distributes a prerelease. Syntax/style and 
 - Prepared Beta.2 winget manifests use the actual published x64/ARM64 installer hashes. They have not been submitted to or accepted by the community repository; no winget installation command is advertised as available.
 
 Windows validation remains hosted x64 CI, including UI rendering, installer/upgrade/uninstall and data preservation. ARM64 is packaged and architecture-checked, without native ARM64 execution. Physical Windows hardware, real tray placement across monitors, login/reboot startup and installed Mac share interactions remain outside verified acceptance. See the preceding sections for test details.
+
+
+## Beta.3 reliability and goal-budget validation (2026-10-05)
+
+- Local macOS: 272 accounting/shared-fixture checks, 12 navigation/state checks, 42 goal attribution/completion/persistence/CSV checks, plus EN/CN light/dark 1080×1440 sharing renders and Vision QR/privacy checks. These use synthetic logs and isolated preferences/backup directories.
+- Windows accounting core passes 210 checks on the development Mac; Windows-only path checks and WPF execution are reserved for hosted CI. C# → Swift and Swift → C# portable archives retain exact decimal amounts, budget, bindings and historical price date.
+- New fixtures cover legacy-only turns followed by modern responses, same-turn transitions, ambiguous intervals, delayed duplicate counters, malformed complete final lines and pending unfinished writes. Incomplete coverage blocks new completion snapshots; existing frozen amounts are retained.
+- Scope checks cover model sample-only cost, whole entity metadata search, goal conversation filtering, CSV/share equality and frozen capture/date context.
+- Storage checks cover structurally invalid/null settings/books, invalid-import preservation, byte-exact corrupt-data recovery, rotation, nonnegative budgets, formula-safe numeric negative budget differences and historical completion pricing.
+- Version metadata is validated from Common/version.json. Windows CI now installs the checksum-pinned public Beta.2 package before the new installer and checks retained preferences, goal assignment and frozen completion amount, followed by portable execution and uninstall retention.
+- Hosted CI, final binary checksums, download-page update and tap acceptance will be recorded after they complete; this local record does not claim those pending checks or physical-device acceptance.

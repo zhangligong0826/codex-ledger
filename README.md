@@ -6,9 +6,9 @@ A local Codex work ledger for **macOS and Windows**. See what each goal, project
 
 ## Install the free beta
 
-**1.2.0-beta.2** — macOS 14+ (Apple Silicon/Intel), Windows 11 (x64/ARM64).
+**1.2.0-beta.3** — macOS 14+ (Apple Silicon/Intel), Windows 11 (x64/ARM64).
 
-Mac: download the universal DMG from the [release](https://github.com/zhangligong0826/codex-ledger/releases/tag/v1.2.0-beta.2), open it and drag Codex Ledger to Applications. Click the menu-bar icon after launching. Homebrew:
+Mac: download the universal DMG from the [release](https://github.com/zhangligong0826/codex-ledger/releases/tag/v1.2.0-beta.3), open it and drag Codex Ledger to Applications. Click the menu-bar icon after launching. Homebrew:
 
 ```sh
 brew install --cask zhangligong0826/tap/codex-ledger
@@ -28,15 +28,19 @@ Goal lifetime totals are independent of the date filter. Marking a goal complete
 
 Projects group by repository/work directory, combine Git worktrees, and distinguish identically named folders by path. Conversations crossing projects retain their scoped amounts. Drill down from goals/projects into chats and turns; search and export the current scope. English/Chinese UI and system/light/dark themes are available.
 
+Goals can have an optional USD budget. Budget remaining/overrun uses the frozen amount for completed goals, and the lifetime estimate for active goals; unknown pricing and incomplete records are called out. Switch the 30-day heatmap between token and estimated-cost intensity in Settings.
+
+Settings includes local goal-book backup/export/import. Imports are validated before replacing data; automatic recovery copies retain the most recent 20 valid snapshots per source. Backups contain private names and attribution rules—keep them private. Project paths may need reassignment when moving between machines.
+
 ## Share an image
 
 The Share menu provides **Create share card**, **Save current view**, and **Export CSV**. Cards are 1080 × 1440 PNGs showing estimated USD, tokens, task turns, the last 30 days and an installation QR. Completed goals also show the frozen completion amount.
 
-Names, paths and chat titles are hidden on cards by default. You may enter a public title or opt into the original name. Current-view captures retain visible content. Preview before copying/saving. Generation freezes the statistics, and all image processing stays on your device. Scan the QR to reach the same download page after future updates.
+Names, paths and chat titles are hidden on cards by default. You may enter a public title or opt into the original name. Current-view captures retain visible content. Preview before copying/saving. Generation freezes the statistics, and all image processing stays on your device. Cards and CSV include the actual captured date range, timezone and source completeness; completion prices retain their original verification date. Scan the QR to reach the same download page after future updates.
 
 ## Accounting and privacy
 
-Total tokens = input + output. Cached input and reasoning output are subsets, not additional tokens. Response IDs are deduplicated across active/archived copies, inherited fork history is excluded, and matched child calls are attributed to the parent turn. Legacy cumulative counters use increments/reset segments. Local calendar days and DST boundaries apply per response.
+Total tokens = input + output. Cached input and reasoning output are subsets, not additional tokens. Response IDs are deduplicated across active/archived copies, inherited fork history is excluded, and matched child calls are attributed to the parent turn. Legacy cumulative counters use increments/reset segments. Mixed legacy/response-ID logs are reconciled per counter interval; ambiguous overlap and malformed completed records remain visible as incomplete coverage and prevent freezing a goal completion. Local calendar days and DST boundaries apply per response.
 
 Cost uses the bundled offline Standard API price snapshot, per deduplicated response, including cache and long-context rules. Unknown models remain unpriced; partial estimates carry `*`. **An API estimate is not a subscription payment or actual bill.** Rates, exclusions and the verification date are documented in [PRICING.md](PRICING.md).
 

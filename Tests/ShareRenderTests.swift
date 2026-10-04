@@ -89,6 +89,14 @@ import Vision
             try png.write(to: directory.appendingPathComponent("edge-\(name).png"))
             precondition(NSBitmapImageRep(data: png)!.pixelsHigh == 1440)
         }
+        store.navigate(.models); store.search = "gpt-5.4"; store.scope = .history; snapshot = nil
+        let expectedModels = store.filteredModels.reduce(CostEstimate()) { $0 + $1.cost }
+        store.makeShareCard()
+        let modelDeadline = Date().addingTimeInterval(10)
+        while snapshot == nil && Date() < modelDeadline { RunLoop.current.run(until: Date().addingTimeInterval(0.01)) }
+        precondition(snapshot?.cost == expectedModels, "Model cards select model usage rather than whole mixed-model turns")
+        precondition(snapshot?.capturedAt == store.snapshot.refreshedAt, "Share capture time belongs to frozen statistics")
+        precondition(snapshot?.calendarRange.contains("20") == true, "Share uses actual calendar dates")
         print("Share checks passed: frozen scope/amount, scope/CSV search equality, 1080x1440, EN/CN light/dark, large/completed/unpriced long-title renders; Vision validation " + (ProcessInfo.processInfo.environment["CODEX_LEDGER_SKIP_VISION"] == "1" ? "disabled on GPU-less Intel CI" : "decoded QR and private defaults passed"))
     }
 }

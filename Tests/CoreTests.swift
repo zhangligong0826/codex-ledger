@@ -94,6 +94,10 @@ import Foundation
         try (modern + "{\"timestamp\":").write(to: partialFile, atomically: true, encoding: .utf8)
         let partial = try parser.parse(url: partialFile)
         expect(partial.samples.count == 2 && partial.malformed == 0, "trailing partial write is ignored until next scan")
+        let badFile = folder.appendingPathComponent("bad-line.jsonl")
+        try (modern + "{bad}\n").write(to: badFile, atomically: true, encoding: .utf8)
+        let badLog = try parser.parse(url: badFile)
+        expect(badLog.malformed == 1 && !scanner.snapshot(logs: [badLog], start: midnight, end: nextDay).isComplete, "complete corrupt lines are surfaced as incomplete accounting")
         let emptyFolder = folder.appendingPathComponent("empty")
         try FileManager.default.createDirectory(at: emptyFolder, withIntermediateDirectories: true)
         let missing = scanner.scan(root: emptyFolder)
@@ -144,6 +148,7 @@ import Foundation
         try analyticsChecks(folder: folder)
         try pricingChecks(folder: folder)
         try activityChecks(folder: folder)
+        expect(LedgerCSV.field("-25.00") == "\"-25.00\"", "negative budget differences remain numeric and formulas remain escaped")
         try sharedChecks(folder: folder)
         print("\(checks - failures)/\(checks) accounting and classification checks passed")
         if failures > 0 { exit(1) }

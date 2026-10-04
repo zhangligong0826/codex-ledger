@@ -49,7 +49,7 @@ public sealed class TurnInfo {
 }
 public sealed class ParsedLog {
     public string Path="",SessionID="",WorkingDirectory="",FirstPrompt="";public string? ParentID;
-    public bool InternalAgent;public int Malformed;public Dictionary<string,TurnInfo> Turns=[];public List<UsageSample> Samples=[];
+    public List<string> IntegrityWarnings=[];public bool InternalAgent;public int Malformed;public Dictionary<string,TurnInfo> Turns=[];public List<UsageSample> Samples=[];
 }
 public sealed record ProjectIdentity(string ID,string Name,string Path) { public static ProjectIdentity Unknown=new("unidentified-project","未识别项目",""); }
 public sealed record LedgerTurn(string ID,string SessionID,string Title,string Category,TokenUsage Usage,DateTimeOffset Date,DateTimeOffset LastActivity,bool Finished,int Responses,int SubagentResponses,string WorkingDirectory,ProjectIdentity Project,IReadOnlyList<UsageSample> Samples,IReadOnlyList<string> Artifacts) {
@@ -57,9 +57,12 @@ public sealed record LedgerTurn(string ID,string SessionID,string Title,string C
     public IReadOnlyList<string> Models=>Samples.Select(x=>x.Model).Distinct().Order().ToArray();
 }
 public sealed record DailyUsage(DateOnly Date,TokenUsage Usage,int Responses,CostEstimate Cost) {
+    public int CostIntensity(decimal peak)=>Cost.TotalUSD<=0||peak<=0?0:Math.Clamp((int)decimal.Ceiling(Cost.TotalUSD/peak*4),1,4);
     public int Intensity(long peak)=>Usage.Total==0?0:Math.Max(1,(int)Math.Ceiling(Math.Min(1,(double)Usage.Total/Math.Max(1,peak))*4));
 }
 public sealed record Snapshot(IReadOnlyList<LedgerTurn> Turns,IReadOnlyList<string> Warnings,int Files,int Malformed) {
+    public bool IsComplete=>Warnings.Count==0&&Malformed==0;
+    public DateTimeOffset CapturedAt {get;init;}=DateTimeOffset.Now;
     public TokenUsage Usage=>Turns.Aggregate(new TokenUsage(),(a,t)=>a+t.Usage);
     public CostEstimate Cost=>Turns.Aggregate(new CostEstimate(),(a,t)=>a+t.Cost);
 }

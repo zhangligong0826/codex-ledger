@@ -23,6 +23,10 @@ struct DailyUsage: Identifiable {
     var responses = 0
     var cost = CostEstimate()
     var id: Date { date }
+    func costIntensity(peak: Decimal) -> Int {
+        guard cost.totalUSD > 0, peak > 0 else { return 0 }
+        return max(1, min(4, Int(ceil(NSDecimalNumber(decimal: cost.totalUSD / peak).doubleValue * 4))))
+    }
     func intensity(peak: Int64) -> Int {
         guard usage.total > 0 else { return 0 }
         return max(1, Int(ceil(min(1, Double(usage.total) / Double(max(1, peak))) * 4)))
@@ -103,6 +107,42 @@ struct UsageSample: Codable {
     var cost: CostEstimate { LedgerPricing.estimate(model: model, usage: usage, hasRequestUsage: hasRequestUsage) }
 }
 
+// Reconcile counters over their recorded intervals; never silently choose one whole-file format.
+enum UsageReconciler {
+    static func reconcile(legacy: [UsageSample], modern: [UsageSample], intervals: [String: Date]) -> (samples: [UsageSample], warnings: [String]) {
+        guard !modern.isEmpty else { return (legacy, []) }
+        var residuals: [UsageSample] = [], warnings: [String] = []
+        for old in legacy {
+            let start = intervals[old.id] ?? .distantPast
+            let covered = modern.filter { $0.date > start && $0.date <= old.date }
+            let used = covered.reduce(TokenUsage()) { $0 + $1.usage }
+            guard used.input <= old.usage.input, used.output <= old.usage.output else {
+                warnings.append("新旧日志计数无法对齐，用量可能不完整。")
+                continue
+            }
+            var remaining = old
+            remaining.usage = TokenUsage()
+            remaining.usage.input = old.usage.input - used.input
+            remaining.usage.output = old.usage.output - used.output
+            remaining.usage.cached = min(remaining.usage.input, max(0, old.usage.cached - used.cached))
+            remaining.usage.reasoning = min(remaining.usage.output, max(0, old.usage.reasoning - used.reasoning))
+            remaining.hasRequestUsage = old.hasRequestUsage && covered.isEmpty
+            if remaining.usage.total > 0 { residuals.append(remaining) }
+        }
+        // Delayed duplicate emissions lack a response ID on the old counter. Keep
+        // modern records and disclose ambiguous coverage instead of double-counting.
+        for turn in Set(legacy.map(\.turnID)).intersection(Set(modern.map(\.turnID))) {
+            let a = legacy.filter { $0.turnID == turn }.reduce(TokenUsage()) { $0 + $1.usage }
+            let b = modern.filter { $0.turnID == turn }.reduce(TokenUsage()) { $0 + $1.usage }
+            if a.input == b.input && a.output == b.output && residuals.contains(where: { $0.turnID == turn }) {
+                residuals.removeAll { $0.turnID == turn }
+                warnings.append("新旧日志计数无法对齐，用量可能不完整。")
+            }
+        }
+        return ((modern + residuals).sorted { $0.date == $1.date ? $0.id < $1.id : $0.date < $1.date }, Array(Set(warnings)).sorted())
+    }
+}
+
 struct TurnInfo: Codable {
     var id: String
     var sessionID: String
@@ -127,6 +167,7 @@ struct ParsedLog: Codable {
     var turns: [String: TurnInfo] = [:]
     var samples: [UsageSample] = []
     var malformed = 0
+    var integrityWarnings: [String] = []
     var usesResponseRecords = false
     var workingDirectory = ""
     var firstPrompt = ""
@@ -166,6 +207,8 @@ struct LedgerSnapshot {
     var warnings: [String] = []
     var refreshedAt = Date()
     var sourcePath = ""
+    var timezone = TimeZone.current.identifier
+    var isComplete: Bool { warnings.isEmpty && malformed == 0 }
     var usage: TokenUsage { tasks.reduce(TokenUsage()) { $0 + $1.usage } }
     var cost: CostEstimate { LedgerPricing.total(tasks) }
 }
@@ -183,31 +226,44 @@ struct ModelUsage: Identifiable {
     }
 }
 
+struct CSVContext {
+    let complete: Bool
+    let warnings: [String]
+    let capturedAt: Date
+    let start: Date
+    let end: Date
+    let timezone: String
+    var headers: [String] { ["记录完整性", "读取提示", "统计时刻", "区间开始", "区间结束（不含）", "时区"] }
+    func values(translate: (String) -> String) -> [String] {
+        [translate(complete ? "完整" : "记录不完整"), warnings.map(translate).joined(separator: "; "), capturedAt.formatted(.iso8601), start.formatted(.iso8601), end.formatted(.iso8601), timezone]
+    }
+}
+
 enum LedgerCSV {
     static func field(_ value: String) -> String {
         var text = value
-        if let first = text.first, ["=", "+", "-", "@", "\t", "\r"].contains(String(first)) { text = "'" + text }
+        if let first = text.first, text.range(of: "^[+-]?[0-9]+(?:\\.[0-9]+)?$", options: .regularExpression) == nil, ["=", "+", "-", "@", "\t", "\r"].contains(String(first)) { text = "'" + text }
         return "\"" + text.replacingOccurrences(of: "\"", with: "\"\"") + "\""
     }
-    static func render(_ tasks: [LedgerTask], goalNames: [String: String]? = nil, translate: (String) -> String = { $0 }) -> String {
+    static func render(_ tasks: [LedgerTask], goalNames: [String: String]? = nil, translate: (String) -> String = { $0 }, context: CSVContext? = nil) -> String {
         let header = ["时间", "任务", "分类", "输入tokens", "缓存输入tokens", "输出tokens", "推理输出tokens", "总tokens", "模型", "关联文件", "聊天ID", "分类依据", "项目", "项目路径", "工作目录"] + LedgerPricing.csvHeaders
         let goalHeaders = goalNames == nil ? [] : ["目标"]
-        var rows = [(header + goalHeaders).map(translate).joined(separator: ",")]
+        var rows = [(header + goalHeaders + (context?.headers ?? [])).map(translate).joined(separator: ",")]
         rows += tasks.map { task -> String in
             let usage = task.usage
             let project = task.projectName == ProjectIdentity.unknown.name ? translate(task.projectName) : task.projectName
             let values: [String] = [task.date.formatted(.iso8601), task.title, translate(task.category.title), String(usage.input), String(usage.cached), String(usage.output), String(usage.reasoning), String(usage.total), task.models.map(translate).joined(separator: "; "), task.artifacts.joined(separator: "; "), task.sessionID, translate(task.reason), project, task.projectPath, task.workingDirectory]
             let goals = goalNames.map { [$0[task.id] ?? translate("未归入目标")] } ?? []
-            return (values + LedgerPricing.csvValues(task.cost) + goals).map(field).joined(separator: ",")
+            return (values + LedgerPricing.csvValues(task.cost) + goals + (context?.values(translate: translate) ?? [])).map(field).joined(separator: ",")
         }
         return "\u{feff}" + rows.joined(separator: "\r\n")
     }
-    static func renderModels(_ models: [ModelUsage], translate: (String) -> String = { $0 }) -> String {
+    static func renderModels(_ models: [ModelUsage], translate: (String) -> String = { $0 }, context: CSVContext? = nil) -> String {
         let header = ["模型", "调用次数", "相关任务数", "输入tokens", "缓存输入tokens", "输出tokens", "推理输出tokens", "总tokens"] + LedgerPricing.csvHeaders
-        var rows = [header.map(translate).joined(separator: ",")]
+        var rows = [(header + (context?.headers ?? [])).map(translate).joined(separator: ",")]
         rows += models.map { model in
             let values = [translate(model.model), String(model.responses), String(model.taskIDs.count), String(model.usage.input), String(model.usage.cached), String(model.usage.output), String(model.usage.reasoning), String(model.usage.total)]
-            return (values + LedgerPricing.csvValues(model.cost)).map(field).joined(separator: ",")
+            return (values + LedgerPricing.csvValues(model.cost) + (context?.values(translate: translate) ?? [])).map(field).joined(separator: ",")
         }
         return "\u{feff}" + rows.joined(separator: "\r\n")
     }
@@ -292,6 +348,7 @@ final class LogParser {
         var currentDirectory = ""
         var lastPrompt = "", previousCategory: WorkCategory = .unknown
         var legacy: [UsageSample] = [], cumulative: TokenUsage?
+        var intervals: [String: Date] = [:], counterDate = Date.distantPast
         var legacySeen = Set<String>(), responsesSeen = Set<String>()
         var structured: [UsageSample] = []
         var isBeforeAgentStart = false
@@ -367,19 +424,21 @@ final class LogParser {
                 let turn = p["turn_id"] as? String ?? currentTurn
                 let root = p["root_turn_id"] as? String ?? rootTurn
                 if result.turns[turn] == nil { result.turns[turn] = TurnInfo(id: turn, sessionID: result.sessionID, rootTurnID: root, prompt: lastPrompt, model: currentModel, start: stamp, inheritedCategory: previousCategory, workingDirectory: currentDirectory) }
-                if stamp >= cutoff { structured.append(UsageSample(id: response, sessionID: result.sessionID, turnID: turn, rootTurnID: root, date: stamp, model: p["model"] as? String ?? currentModel, usage: TokenUsage(usage))) }
+                structured.append(UsageSample(id: response, sessionID: result.sessionID, turnID: turn, rootTurnID: root, date: stamp, model: p["model"] as? String ?? currentModel, usage: TokenUsage(usage)))
                 result.usesResponseRecords = true
                 return
             }
             if type == "event_msg", p["type"] as? String == "token_count", let info = p["info"] as? [String: Any], let total = info["total_token_usage"] as? [String: Any] {
                 let now = TokenUsage(total), delta = now.delta(after: cumulative)
                 cumulative = now
+                let intervalStart = counterDate; counterDate = stamp
                 // Repeated quota-only snapshots do not represent new inference.
-                guard delta.total > 0, !isBeforeAgentStart, stamp >= cutoff else { return }
+                guard delta.total > 0, !isBeforeAgentStart else { return }
                 let signature = "\(result.sessionID):\(currentTurn):\(stamp.timeIntervalSince1970):\(now.input):\(now.output)"
                 guard legacySeen.insert(signature).inserted else { return }
                 ensureTurn(stamp)
                 let last = (info["last_token_usage"] as? [String: Any]).map(TokenUsage.init)
+                intervals[signature] = intervalStart
                 legacy.append(UsageSample(id: signature, sessionID: result.sessionID, turnID: currentTurn, rootTurnID: rootTurn, date: stamp, model: currentModel, usage: delta, hasRequestUsage: last == delta))
                 return
             }
@@ -412,7 +471,9 @@ final class LogParser {
         }
         // A trailing partial line is expected while Codex is writing. Retry next scan.
         if !pending.isEmpty, (try? JSONSerialization.jsonObject(with: pending)) != nil { consume(pending) }
-        result.samples = result.usesResponseRecords ? structured : legacy
+        let reconciliation = UsageReconciler.reconcile(legacy: legacy, modern: structured, intervals: intervals)
+        result.samples = reconciliation.samples.filter { $0.date >= cutoff }
+        result.integrityWarnings = reconciliation.warnings
         if result.sessionID.isEmpty {
             result.sessionID = "log:" + url.deletingPathExtension().lastPathComponent
             for key in result.turns.keys { result.turns[key]?.sessionID = result.sessionID }
@@ -484,7 +545,10 @@ final class LedgerScanner: @unchecked Sendable {
         return (logs, warnings)
     }
     func snapshot(logs: [ParsedLog], start: Date, end: Date, root: String = "", overrides: [String: String] = [:], warnings: [String] = []) -> LedgerSnapshot {
-        var result = LedgerSnapshot(files: logs.count, malformed: logs.reduce(0) { $0 + $1.malformed }, warnings: warnings, sourcePath: root)
+        let parseWarnings = logs.flatMap(\.integrityWarnings)
+        let malformed = logs.reduce(0) { $0 + $1.malformed }
+        let coverageWarnings = warnings + parseWarnings + (malformed > 0 ? ["部分完整日志行损坏，用量可能不完整。"] : [])
+        var result = LedgerSnapshot(files: logs.count, malformed: malformed, warnings: Array(Set(coverageWarnings)).sorted(), sourcePath: root)
         var groups: [String: [UsageSample]] = [:]
         var infos: [String: TurnInfo] = [:], internalSessions = Set<String>()
         for log in logs {
@@ -544,7 +608,7 @@ final class LedgerScanner: @unchecked Sendable {
             }
         }
     }
-    func dailyUsage(logs: [ParsedLog], now: Date = Date(), calendar: Calendar? = nil, taskIDs: Set<String>? = nil) -> [DailyUsage] {
+    func dailyUsage(logs: [ParsedLog], now: Date = Date(), calendar: Calendar? = nil, taskIDs: Set<String>? = nil, models: Set<String>? = nil) -> [DailyUsage] {
         let calendar = calendar ?? self.calendar
         let range = DateScope.month.interval(now: now, calendar: calendar)
         var days = (0..<30).map { DailyUsage(date: calendar.date(byAdding: .day, value: $0, to: range.start)!) }
@@ -553,6 +617,7 @@ final class LedgerScanner: @unchecked Sendable {
         forEachUniqueSample(logs: logs, start: range.start, end: range.end) { sample in
             let key = owners[sample.sessionID + ":" + sample.turnID] ?? (sample.sessionID + ":" + sample.turnID)
             if let taskIDs, !taskIDs.contains(key) { return }
+            if let models, !models.contains(sample.model) { return }
             guard let index = indexes[calendar.startOfDay(for: sample.date)] else { return }
             days[index].usage = days[index].usage + sample.usage
             days[index].responses += 1

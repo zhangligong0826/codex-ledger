@@ -2,7 +2,7 @@
 
 This is an offline **USD equivalent at Standard API rates**, not a bill, subscription spend, account balance or historical invoice. No API key or network request is used. Opening the pricing link in a browser is a user action.
 
-The bundled prices were verified on **2026-10-04** against the [official Standard pricing table](https://developers.openai.com/api/docs/pricing). The explicitly supported GPT-5.5 snapshot is documented on its [model page](https://developers.openai.com/api/docs/models/gpt-5.5). The complete table lives in `Sources/LedgerPricing.swift`; undocumented models and aliases remain unpriced. Future price changes require an app update. GPT-5.6 Sol currently uses the published promotional price.
+The bundled prices were verified on **2026-10-04** against the [official Standard pricing table](https://developers.openai.com/api/docs/pricing). The explicitly supported GPT-5.5 snapshot is documented on its [model page](https://developers.openai.com/api/docs/models/gpt-5.5). The complete table lives in `Common/prices.json`; undocumented models and aliases remain unpriced. Future price changes require an app update. GPT-5.6 Sol currently uses the published promotional price.
 
 For each deduplicated response:
 

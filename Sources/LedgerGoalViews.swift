@@ -24,18 +24,20 @@ struct GoalEditorView: View {
     @ObservedObject var store: LedgerStore
     let draft: GoalEditorDraft
     @State private var name = ""
+    @State private var budget = ""
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text(L(draft.goalID == nil ? "新建目标" : "重命名目标")).font(.headline)
             TextField(L("例如：开发 Codex Ledger、完成论文投稿"), text: $name).textFieldStyle(.roundedBorder)
                 .onSubmit { save() }
+            TextField(L("USD 预算（可选）"), text: $budget).textFieldStyle(.roundedBorder)
             Text(L("把同一成果的项目、对话或轮次归到一起，累计其用量和预估金额。")).font(.system(size: 12)).foregroundStyle(.secondary)
             HStack { Spacer(); Button(L("取消")) { store.goalEditor = nil }.keyboardShortcut(.cancelAction)
                 Button(L("保存")) { save() }.keyboardShortcut(.defaultAction).disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
-        }.padding(22).frame(width: 410).onAppear { name = draft.name }
+        }.padding(22).frame(width: 410).onAppear { name = draft.name; budget = draft.budget }
     }
-    private func save() { store.saveGoal(name: name, draft: draft) }
+    private func save() { store.saveGoal(name: name, draft: draft, budgetText: budget) }
 }
 struct GoalListView: View {
     @ObservedObject var store: LedgerStore
@@ -71,6 +73,7 @@ struct GoalListView: View {
                             Spacer()
                             Text(countLabel(entry))
                         }.font(.system(size: 11)).foregroundStyle(.secondary)
+                        if let text = GoalBudget.label(entry.goal, cost: entry.goal.completionCost ?? entry.lifetimeCost, complete: entry.goal.completionCost != nil || store.goalAmountsReady) { Text(text).font(.system(size: 11)).foregroundStyle(.secondary) }
                         if let last = entry.lastActivity { Text(L("最近活动") + " " + last.formatted(.dateTime.month().day().hour().minute())).font(.system(size: 10)).foregroundStyle(.tertiary) }
                     }.padding(16).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
                 }
@@ -132,6 +135,7 @@ struct GoalDetailHeader: View {
                     }.fixedSize()
                 }
             }
+            if let text = GoalBudget.label(entry.goal, cost: entry.goal.completionCost ?? entry.lifetimeCost, complete: entry.goal.completionCost != nil || store.goalAmountsReady) { Text(text).font(.system(size: 11)).foregroundStyle(.secondary) }
             Text(L("金额为 API 估算。标记完成会保存当时金额，累计不受日期筛选影响。")).font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 .help(L("后续用量继续计入累计，不改变完成时记录；重新打开目标会清除完成时记录。"))
             HStack {
