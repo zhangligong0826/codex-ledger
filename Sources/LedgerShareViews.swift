@@ -70,7 +70,7 @@ import UniformTypeIdentifiers
             Text(title).font(.system(size: 23, weight: .bold)).lineLimit(2).frame(height: 57, alignment: .topLeading)
             amount
             if let cost = value.completionCost {
-                HStack { Text(T("完成时")); Spacer(); Text(money(cost) + " USD").bold() }.font(.system(size: 10))
+                HStack { Text(T("完成时")); Spacer(); Text(money(cost) + " USD").bold().lineLimit(1).minimumScaleFactor(0.3) }.font(.system(size: 10))
             }
             heatmap
             Spacer(minLength: 0)

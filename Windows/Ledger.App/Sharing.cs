@@ -35,7 +35,7 @@ public static class ShareRendering {
         Add(Text(t("预估 API 花费")+" · USD",10),22,112);
         var amount=new Viewbox{Width=316,Height=47,Stretch=Stretch.Uniform,StretchDirection=StretchDirection.DownOnly,HorizontalAlignment=HorizontalAlignment.Left,Child=new TextBlock{Text=t(s.Cost.Money),FontSize=38,FontWeight=FontWeights.SemiBold,Foreground=fg}};Add(amount,22,128);
         Add(Text(s.Range+(s.Filtered?" · "+t("已筛选"):""),10),22,181);Add(Text($"{Compact(s.Usage.Total)} tokens · {s.Turns} {t("任务轮次")} · {s.Models} {t("模型")}",10),22,201);
-        if(s.CompletionCost!=null)Add(Text(t("完成时")+": "+t(s.CompletionCost.Money)+" USD",10),22,221);
+        if(s.CompletionCost!=null)Add(new Viewbox{Width=316,Height=14,Stretch=Stretch.Uniform,StretchDirection=StretchDirection.DownOnly,Child=new TextBlock{Text=t("完成时")+": "+t(s.CompletionCost.Money)+" USD",FontSize=10,Foreground=fg}},22,221);
         double y=s.CompletionCost==null?232:250;
         var board=new Canvas{Width=316,Height=136,Background=new SolidColorBrush((Color)ColorConverter.ConvertFromString(dark?"#232C35":"#F2F5F8"))};
         void Board(UIElement e,double x,double top){Canvas.SetLeft(e,x);Canvas.SetTop(e,top);board.Children.Add(e);}

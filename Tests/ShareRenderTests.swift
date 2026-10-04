@@ -65,6 +65,16 @@ import Vision
                 precondition(ShareImages.card(value, title: publicTitle, showName: false, language: language, dark: dark) != nil)
             }
         }
-        print("Share checks passed: frozen scope/amount, 1080x1440, 4 EN/CN light/dark renders; Vision validation " + (ProcessInfo.processInfo.environment["CODEX_LEDGER_SKIP_VISION"] == "1" ? "disabled on GPU-less Intel CI" : "decoded QR and private defaults passed"))
+        for (name, cost) in [("large", CostEstimate(inputUSD: Decimal(string: "9876543210987.99")!, pricedTokens: 1)), ("unpriced", CostEstimate(unpricedTokens: 100))] {
+            let edge = ShareSnapshot(kind: "目标花费", privateTitle: "PRIVATE", range: value.range, timezone: value.timezone,
+                usage: value.usage, cost: cost, turns: value.turns, conversations: value.conversations, models: value.models,
+                days: value.days, completionCost: cost, completionDate: Date(), completionPriceDate: value.priceDate,
+                filtered: true, warning: true, priceDate: value.priceDate)
+            let image = ShareImages.card(edge, title: String(repeating: "A long public goal title ", count: 8), showName: false, language: "en", dark: false)!
+            let png = ShareImages.png(image)!
+            try png.write(to: directory.appendingPathComponent("edge-\(name).png"))
+            precondition(NSBitmapImageRep(data: png)!.pixelsHigh == 1440)
+        }
+        print("Share checks passed: frozen scope/amount, scope/CSV search equality, 1080x1440, EN/CN light/dark, large/completed/unpriced long-title renders; Vision validation " + (ProcessInfo.processInfo.environment["CODEX_LEDGER_SKIP_VISION"] == "1" ? "disabled on GPU-less Intel CI" : "decoded QR and private defaults passed"))
     }
 }
