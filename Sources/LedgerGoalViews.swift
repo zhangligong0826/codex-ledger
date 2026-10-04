@@ -67,9 +67,9 @@ struct GoalListView: View {
                             }.contentShape(Rectangle())
                         }.buttonStyle(.plain)
                         HStack {
-                            Text(L("所选日期") + " · " + (store.dataUnavailable ? "—" : LedgerPricing.display(entry.cost) + " USD · " + compactTokens(entry.usage.total) + " tokens"))
+                            Text(rangeLabel(entry))
                             Spacer()
-                            Text(store.dataUnavailable ? "—" : L("\(entry.tasks.count) 个任务") + " · " + L("\(Set(entry.tasks.map(\.sessionID)).count) 个对话"))
+                            Text(countLabel(entry))
                         }.font(.system(size: 11)).foregroundStyle(.secondary)
                         if let last = entry.lastActivity { Text(L("最近活动") + " " + last.formatted(.dateTime.month().day().hour().minute())).font(.system(size: 10)).foregroundStyle(.tertiary) }
                     }.padding(16).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
@@ -85,18 +85,38 @@ struct GoalListView: View {
             }
         }
     }
+    private func rangeLabel(_ entry: GoalUsage) -> String {
+        let prefix = L("所选日期") + " · "
+        if store.dataUnavailable { return prefix + "—" }
+        let amount = LedgerPricing.display(entry.cost) + " USD"
+        let tokens = compactTokens(entry.usage.total) + " tokens"
+        return prefix + amount + " · " + tokens
+    }
+    private func countLabel(_ entry: GoalUsage) -> String {
+        if store.dataUnavailable { return "—" }
+        let turns = L("\(entry.tasks.count) 个任务")
+        let chats = L("\(Set(entry.tasks.map(\.sessionID)).count) 个对话")
+        return turns + " · " + chats
+    }
 }
 struct GoalDetailHeader: View {
     @ObservedObject var store: LedgerStore
     let entry: GoalUsage
     @State private var confirmDelete = false
+    private var lifetimeDescription: String {
+        guard store.goalAmountsReady else { return store.dataUnavailable ? "—" : L("正在整理日志…") }
+        let tokens = compactTokens(entry.lifetimeUsage.total) + " tokens"
+        let turns = L("\(entry.lifetimeTasks.count) 个任务")
+        let chats = L("\(Set(entry.lifetimeTasks.map(\.sessionID)).count) 个对话")
+        return [tokens, turns, chats].joined(separator: " · ")
+    }
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(L("累计预估 API 花费")).font(.system(size: 11)).foregroundStyle(.secondary)
                     Text(store.goalAmountsReady ? LedgerPricing.display(entry.lifetimeCost) + " USD" : store.dataUnavailable ? "—" : "…").font(.system(size: 28, weight: .semibold, design: .rounded)).monospacedDigit()
-                    Text(store.goalAmountsReady ? compactTokens(entry.lifetimeUsage.total) + " tokens · " + L("\(entry.lifetimeTasks.count) 个任务") + " · " + L("\(Set(entry.lifetimeTasks.map(\.sessionID)).count) 个对话") : L("正在整理日志…")).font(.system(size: 11)).foregroundStyle(.secondary)
+                    Text(lifetimeDescription).font(.system(size: 11)).foregroundStyle(.secondary)
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 6) {

@@ -68,6 +68,12 @@ struct StatusPopover: View {
     var openDashboard: () -> Void
     @LedgerViewState private var showCostDetails = false
     private var showTotals: Bool { store.rangeReady && !store.dataUnavailable }
+    private var tokenSummary: String {
+        guard showTotals else { return "—" }
+        let tokens = compactTokens(store.snapshot.usage.total) + " tokens"
+        let turns = L("\(store.snapshot.tasks.count) 个任务")
+        return tokens + " · " + turns
+    }
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
@@ -96,7 +102,7 @@ struct StatusPopover: View {
                                         .lineLimit(1).minimumScaleFactor(0.6)
                                     Text("USD").font(.system(size: 9)).foregroundStyle(.secondary)
                                 }
-                                Text(showTotals ? compactTokens(store.snapshot.usage.total) + " tokens · " + L("\(store.snapshot.tasks.count) 个任务") : "—")
+                                Text(tokenSummary)
                                     .font(.system(size: 10)).foregroundStyle(.secondary)
                             }
                             Spacer(minLength: 0)
@@ -247,7 +253,12 @@ struct MonthlyActivityView: View {
     }
     private func tooltip(_ day: DailyUsage) -> String {
         let date = day.date.formatted(Date.FormatStyle().year().month().day().locale(Locale(identifier: store.language == "en" ? "en_US" : "zh_CN")))
-        return date + " · " + (pending ? L("正在整理日志…") : failed ? L("需要检查数据目录") : LedgerPricing.display(day.cost) + " USD · " + exactTokens(day.usage.total) + " tokens · " + L("\(day.responses) 次响应"))
+        if pending { return date + " · " + L("正在整理日志…") }
+        if failed { return date + " · " + L("需要检查数据目录") }
+        let amount = LedgerPricing.display(day.cost) + " USD"
+        let tokens = exactTokens(day.usage.total) + " tokens"
+        let calls = L("\(day.responses) 次响应")
+        return [date, amount, tokens, calls].joined(separator: " · ")
     }
 }
 
@@ -293,7 +304,7 @@ struct DashboardView: View {
                     }
                     UsageMetrics(usage: store.contextUsage, cost: store.contextCost, pending: !store.rangeReady || store.dataUnavailable)
                     } else if store.selectedGoalID != nil {
-                        Text(L("所选日期") + " · " + (store.rangeReady && !store.dataUnavailable ? L("\(store.contextTasks.count) 个任务") + " · " + compactTokens(store.contextUsage.total) + " tokens" : "—")).font(.system(size: 11)).foregroundStyle(.secondary)
+                        Text(selectedRangeSummary).font(.system(size: 11)).foregroundStyle(.secondary)
                         UsageMetrics(usage: store.contextUsage, cost: store.contextCost, pending: !store.rangeReady || store.dataUnavailable)
                     }
                     if store.busy { HStack { ProgressView().controlSize(.small); Text(store.scanStatus).font(.system(size: 11)).foregroundStyle(.secondary) } }
@@ -316,6 +327,13 @@ struct DashboardView: View {
         }.sheet(item: $store.goalEditor) { draft in GoalEditorView(store: store, draft: draft) }
         .id(store.language).background(Color(nsColor: .windowBackgroundColor))
             .alert("Codex Ledger", isPresented: Binding(get: { store.errorMessage != nil }, set: { if !$0 { store.errorMessage = nil } })) { Button(L("知道了")) { store.errorMessage = nil } } message: { Text(store.errorMessage ?? "") }
+    }
+    var selectedRangeSummary: String {
+        let prefix = L("所选日期") + " · "
+        guard store.rangeReady && !store.dataUnavailable else { return prefix + "—" }
+        let turns = L("\(store.contextTasks.count) 个任务")
+        let tokens = compactTokens(store.contextUsage.total) + " tokens"
+        return prefix + turns + " · " + tokens
     }
     var title: String {
         if store.showSettings { return L("设置") }

@@ -74,14 +74,32 @@ struct GoalUsage: Identifiable {
 }
 extension LedgerCSV {
     static func renderGoals(_ goals: [GoalUsage], scope: String, lifetimeReady: Bool, translate: (String) -> String = { $0 }) -> String {
-        let header = ["目标", "目标ID", "目标状态", "创建时间", "完成时间", "统计范围", "任务轮次", "对话数", "项目数", "总tokens"] + LedgerPricing.csvHeaders + ["累计总tokens"] + LedgerPricing.csvHeaders.map { "累计" + $0 } + ["完成时总tokens"] + LedgerPricing.csvHeaders.map { "完成时" + $0 }
-        let rows = goals.map { entry -> String in
-            let values = [entry.goal.name, entry.id, translate(entry.goal.completedAt == nil ? "进行中" : "已完成"), entry.goal.createdAt.formatted(.iso8601), entry.goal.completedAt?.formatted(.iso8601) ?? "", scope, String(entry.tasks.count), String(Set(entry.tasks.map(\.sessionID)).count), String(Set(entry.tasks.map(\.projectID)).count), String(entry.usage.total)] + LedgerPricing.csvValues(entry.cost) + [lifetimeReady ? String(entry.lifetimeUsage.total) : ""] + (lifetimeReady ? LedgerPricing.csvValues(entry.lifetimeCost) : LedgerPricing.csvHeaders.map { _ in "" })
-            var completionValues = entry.goal.completionCost.map { LedgerPricing.csvValues($0) } ?? LedgerPricing.csvHeaders.map { _ in "" }
-            completionValues[4] = entry.goal.completionPriceDate ?? ""
-            let completed = [entry.goal.completionUsage.map { String($0.total) } ?? ""] + completionValues
-            return (values + completed).map(field).joined(separator: ",")
+        var header: [String] = ["目标", "目标ID", "目标状态", "创建时间", "完成时间", "统计范围", "任务轮次", "对话数", "项目数", "总tokens"]
+        header += LedgerPricing.csvHeaders
+        header.append("累计总tokens")
+        header += LedgerPricing.csvHeaders.map { "累计" + $0 }
+        header.append("完成时总tokens")
+        header += LedgerPricing.csvHeaders.map { "完成时" + $0 }
+        var rows: [String] = []
+        for entry in goals {
+            let state = translate(entry.goal.completedAt == nil ? "进行中" : "已完成")
+            let created = entry.goal.createdAt.formatted(.iso8601)
+            let completed = entry.goal.completedAt?.formatted(.iso8601) ?? ""
+            let chats = String(Set(entry.tasks.map(\.sessionID)).count)
+            let projects = String(Set(entry.tasks.map(\.projectID)).count)
+            var values: [String] = [entry.goal.name, entry.id, state, created, completed, scope]
+            values += [String(entry.tasks.count), chats, projects, String(entry.usage.total)]
+            values += LedgerPricing.csvValues(entry.cost)
+            values.append(lifetimeReady ? String(entry.lifetimeUsage.total) : "")
+            let emptyPrices: [String] = LedgerPricing.csvHeaders.map { _ in "" }
+            values += lifetimeReady ? LedgerPricing.csvValues(entry.lifetimeCost) : emptyPrices
+            values.append(entry.goal.completionUsage.map { String($0.total) } ?? "")
+            var completionPrices: [String] = entry.goal.completionCost.map { LedgerPricing.csvValues($0) } ?? emptyPrices
+            completionPrices[4] = entry.goal.completionPriceDate ?? ""
+            values += completionPrices
+            rows.append(values.map(field).joined(separator: ","))
         }
-        return "\u{feff}" + ([header.map(translate).map(field).joined(separator: ",")] + rows).joined(separator: "\r\n")
+        let translatedHeader = header.map(translate).map(field).joined(separator: ",")
+        return "\u{feff}" + ([translatedHeader] + rows).joined(separator: "\r\n")
     }
 }
