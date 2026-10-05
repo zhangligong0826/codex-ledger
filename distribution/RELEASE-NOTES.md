@@ -11,6 +11,6 @@ Download: https://zhangligong0826.github.io/codex-ledger/
 
 Mac: universal DMG/ZIP or `brew install --cask zhangligong0826/tap/codex-ledger`. Windows 11: self-contained x64/ARM64 installers and portable ZIPs.
 
-API cost estimates are not subscription bills. Logs, bookkeeping and card rendering stay local. This free beta is ad-hoc signed on macOS and unsigned on Windows, without Apple notarization; follow system first-launch confirmations. Do not disable system security protections.
+API cost estimates are not subscription bills. Logs, bookkeeping and card rendering stay local. The release workflow records Mac signing/notarization status below. Windows builds are unsigned; follow system first-launch confirmations. Do not disable system security protections.
 
 Verification evidence is recorded in QA.md. Windows runtime/UI/install/upgrade checks run on hosted x64 CI; ARM64 is built and architecture checked, without native ARM64 execution. Physical Windows devices, monitor placement and login/reboot checks remain outside acceptance. All six binary hashes are listed in CHECKSUMS.txt. Older releases remain unchanged.

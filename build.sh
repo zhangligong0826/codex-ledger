@@ -57,8 +57,7 @@ else
 fi
 xattr -cr "$STAGED_APP"
 cp "$PROJECT_DIR/Common/prices.json" "$STAGED_APP/Contents/Resources/prices.json"
-codesign --force --sign - "$STAGED_APP"
-codesign --verify --deep --strict "$STAGED_APP"
+zsh "$PROJECT_DIR/distribution/sign-mac.sh" "$STAGED_APP"
 VERSION="$(/usr/libexec/PlistBuddy -c 'Print LedgerReleaseVersion' "$STAGED_APP/Contents/Info.plist" 2>/dev/null || /usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$STAGED_APP/Contents/Info.plist")"
 ZIP_NAME="Codex-Ledger-$VERSION-macOS-$BUILD_ARCH.zip"
 ditto --norsrc --noextattr -c -k --keepParent "$STAGED_APP" "$OUTPUT_DIR/$ZIP_NAME"
@@ -70,8 +69,18 @@ if [[ "${CODEX_LEDGER_INSTALL:-0}" == 1 ]]; then
     [[ "$INSTALLED_ID" == local.codexledger.app ]] || { print -u2 'Refusing to overwrite an unrelated app'; exit 1; }
   fi
   mkdir -p "$HOME/Applications"
-  ditto --norsrc --noextattr "$STAGED_APP" "$INSTALL_PATH"
+  INSTALL_STAGING_DIR="$(mktemp -d "$HOME/Applications/.codex-ledger-install.XXXXXX")"
+  ditto --norsrc --noextattr "$STAGED_APP" "$INSTALL_STAGING_DIR/new.app"
+  codesign --verify --deep --strict "$INSTALL_STAGING_DIR/new.app"
+  # Install a fresh bundle, not an overlay that can retain old resources or
+  # downloaded-bundle metadata. Keep the previous app for recovery.
+  if [[ -e "$INSTALL_PATH" ]]; then mv "$INSTALL_PATH" "$INSTALL_STAGING_DIR/previous.app"; fi
+  if ! mv "$INSTALL_STAGING_DIR/new.app" "$INSTALL_PATH"; then
+    [[ ! -e "$INSTALL_STAGING_DIR/previous.app" ]] || mv "$INSTALL_STAGING_DIR/previous.app" "$INSTALL_PATH"
+    print -u2 'Install failed; the previous app was restored.'; exit 1
+  fi
   codesign --verify --deep --strict "$INSTALL_PATH"
+  [[ ! -e "$INSTALL_STAGING_DIR/previous.app" ]] || print "Recovery copy: $INSTALL_STAGING_DIR/previous.app"
   print "Installed: $INSTALL_PATH"
 fi
 print "Built: $OUTPUT_DIR/$ZIP_NAME"

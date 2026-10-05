@@ -16,7 +16,7 @@ brew install --cask zhangligong0826/tap/codex-ledger
 
 Windows：下载对应架构的安装 EXE，或解压免安装 ZIP 后运行 `CodexLedger.exe`。点击系统托盘图标查看总览和详细账本。运行时已内置，默认按当前用户安装。升级和卸载保留本机设置及目标账本。
 
-测试版的 Mac 使用临时签名、未完成 Apple 公证，Windows 尚未正式签名。首次打开请按 [Apple 官方步骤](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac)及 Windows 设备策略确认，公司设备可能需要管理员批准。安装流程保留系统安全检查。
+当前公开 Beta.4 的 Mac 使用临时签名、未完成 Apple 公证，Windows 尚未正式签名。macOS 可能拒绝打开并提示“移到废纸篓”；这不能靠重新下载安装彻底解决。正式 Mac 发行需要 Developer ID 签名与 Apple 公证，维护流程已补齐，见[签名与公证说明](docs/MAC-SIGNING.md)。首次打开请按 [Apple 官方步骤](https://support.apple.com/102445)及 Windows 设备策略确认，公司设备可能需要管理员批准。安装流程保留系统安全检查。
 
 发布页 `CHECKSUMS.txt` 提供全部六个安装产物的 SHA-256。Windows ARM64 已交叉构建，尚未完成原生运行及 Windows 实机验收；具体范围见 [QA.md](QA.md)。
 

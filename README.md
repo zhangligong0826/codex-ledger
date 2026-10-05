@@ -16,7 +16,7 @@ brew install --cask zhangligong0826/tap/codex-ledger
 
 Windows: use the installer matching your architecture, or extract the portable ZIP and run `CodexLedger.exe`. The system-tray icon opens the overview and work ledger. The .NET runtime is bundled, and installation is per-user. Upgrades and uninstall preserve local settings/goal books.
 
-This free beta has ad-hoc signing on macOS and no formal Windows publisher signature or Apple notarization. Use the [Apple first-launch instructions](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac) and your Windows device's installation policy. Corporate devices may require administrator approval. No installer disables Gatekeeper, quarantine, Defender or SmartScreen.
+The published Beta.4 has ad-hoc signing on macOS and no Apple notarization; Windows has no formal publisher signature. Gatekeeper can refuse the Mac build with a Move to Trash alert, and reinstalling the same package does not establish trust. The formal Developer ID/notarization pipeline is prepared; see [signing and notarization](docs/MAC-SIGNING.md). Use the [Apple first-launch instructions](https://support.apple.com/102445) and your Windows device's installation policy. Corporate devices may require administrator approval. No installer disables Gatekeeper, quarantine, Defender or SmartScreen.
 
 SHA-256 values for all six binary assets are in `CHECKSUMS.txt` on the release. Windows ARM64 is cross-built; native ARM64 execution and physical Windows device acceptance are not verified. See [QA.md](QA.md).
 

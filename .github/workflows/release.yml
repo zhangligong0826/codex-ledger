@@ -1,16 +1,49 @@
 name: Draft cross-platform release
 on:
   workflow_dispatch:
+    inputs:
+      mac_signing:
+        description: 'Developer ID + Apple notarization, or an explicitly unsigned beta'
+        type: choice
+        required: true
+        default: developer-id
+        options:
+          - developer-id
+          - unsigned-beta
 permissions:
   contents: read
 jobs:
+  signing-config:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require formal signing credentials or explicit beta selection
+        env:
+          SIGNING_MODE: ${{ inputs.mac_signing }}
+          CERTIFICATE: ${{ secrets.MAC_CERTIFICATE_P12_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+          SIGNING_IDENTITY: ${{ secrets.MAC_SIGNING_IDENTITY }}
+          NOTARY_KEY: ${{ secrets.APPLE_NOTARY_PRIVATE_KEY }}
+          NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+          NOTARY_ISSUER: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
+        run: |
+          if [[ "$SIGNING_MODE" == developer-id ]]; then
+            for name in CERTIFICATE CERTIFICATE_PASSWORD SIGNING_IDENTITY NOTARY_KEY NOTARY_KEY_ID NOTARY_ISSUER; do
+              [[ -n "${!name}" ]] || { echo "Missing signing secret: $name. No unsigned fallback will be published." >&2; exit 1; }
+            done
+          elif [[ "$SIGNING_MODE" == unsigned-beta ]]; then
+            echo 'Explicit unsigned beta: Gatekeeper may reject this build. This is not a notarized release.'
+          else
+            echo 'Select a supported Mac signing mode.' >&2; exit 1
+          fi
   checks:
+    needs: signing-config
     uses: ./.github/workflows/ci.yml
   windows:
+    needs: signing-config
     uses: ./.github/workflows/windows.yml
   mac:
     runs-on: macos-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
     needs: checks
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -21,8 +54,52 @@ jobs:
         run: |
           version="$(/usr/libexec/PlistBuddy -c 'Print LedgerReleaseVersion' Info.plist)"
           [[ "$GITHUB_REF" == "refs/tags/v$version" ]] || { print -u2 'Dispatch on the matching release tag.'; exit 1; }
-      - run: CODEX_LEDGER_NATIVE_ICON=required zsh build.sh
-      - run: CODEX_LEDGER_NATIVE_ICON=required zsh package.sh
+      - name: Prepare isolated Developer ID and Apple notary credentials
+        if: inputs.mac_signing == 'developer-id'
+        env:
+          CERTIFICATE: ${{ secrets.MAC_CERTIFICATE_P12_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+          SIGNING_IDENTITY: ${{ secrets.MAC_SIGNING_IDENTITY }}
+          NOTARY_KEY: ${{ secrets.APPLE_NOTARY_PRIVATE_KEY }}
+          NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+          NOTARY_ISSUER: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
+        run: |
+          umask 077
+          credentials="$RUNNER_TEMP/ledger-signing"
+          mkdir -p "$credentials"
+          export LEDGER_SIGNING_DIR="$credentials"
+          python3 - <<'PY'
+          import base64,os,pathlib
+          p=pathlib.Path(os.environ['LEDGER_SIGNING_DIR'])
+          (p/'certificate.p12').write_bytes(base64.b64decode(os.environ['CERTIFICATE'],validate=True))
+          (p/'AuthKey.p8').write_text(os.environ['NOTARY_KEY'])
+          PY
+          keychain="$credentials/release.keychain-db"
+          keychain_password="$(openssl rand -hex 32)"
+          echo "::add-mask::$keychain_password"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$credentials/certificate.p12" -k "$keychain" -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$keychain_password" "$keychain"
+          security list-keychains -d user -s "$keychain"
+          security default-keychain -d user -s "$keychain"
+          xcrun notarytool store-credentials ledger-release --key "$credentials/AuthKey.p8" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER"
+          echo 'CODEX_LEDGER_SIGNING_MODE=developer-id' >> "$GITHUB_ENV"
+          echo "CODEX_LEDGER_SIGNING_IDENTITY=$SIGNING_IDENTITY" >> "$GITHUB_ENV"
+          echo 'CODEX_LEDGER_NOTARY_PROFILE=ledger-release' >> "$GITHUB_ENV"
+      - name: Build signed universal app
+        run: CODEX_LEDGER_NATIVE_ICON=required zsh build.sh
+      - name: Notarize app and staple its Apple ticket
+        if: inputs.mac_signing == 'developer-id'
+        run: zsh distribution/notarize-mac.sh
+      - name: Package and validate distribution
+        run: CODEX_LEDGER_NATIVE_ICON=required zsh package.sh
+      - name: Remove temporary signing material
+        if: always() && inputs.mac_signing == 'developer-id'
+        run: |
+          security delete-keychain "$RUNNER_TEMP/ledger-signing/release.keychain-db" || true
+          rm -rf "$RUNNER_TEMP/ledger-signing"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: mac-packages
@@ -54,4 +131,10 @@ jobs:
         run: |
           python3 distribution/release-assets.py artifacts
           version="$(python3 -c 'import plistlib; print(plistlib.load(open("Info.plist","rb"))["LedgerReleaseVersion"])')"
-          gh release create "v$version" --verify-tag --draft --prerelease --title "Codex Ledger $version" --notes-file distribution/RELEASE-NOTES.md artifacts/Codex-Ledger-* artifacts/CHECKSUMS.txt
+          cp distribution/RELEASE-NOTES.md artifacts/RELEASE-NOTES.md
+          if [[ '${{ inputs.mac_signing }}' == developer-id ]]; then
+            printf '\nMac distribution: Developer ID signed, Apple notarized and stapled; Gatekeeper validation passed.\n' >> artifacts/RELEASE-NOTES.md
+          else
+            printf '\nMac distribution: explicitly unnotarized beta; Gatekeeper can refuse to open it.\n' >> artifacts/RELEASE-NOTES.md
+          fi
+          gh release create "v$version" --verify-tag --draft --prerelease --title "Codex Ledger $version" --notes-file artifacts/RELEASE-NOTES.md artifacts/Codex-Ledger-* artifacts/CHECKSUMS.txt

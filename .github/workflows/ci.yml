@@ -38,6 +38,8 @@ jobs:
         env:
           CODEX_LEDGER_NATIVE_ICON: ${{ matrix.runner == 'macos-latest' && 'required' || 'auto' }}
         run: CODEX_LEDGER_ARCH="$(uname -m)" zsh build.sh
+      - name: Release signing policy guards (mock tools)
+        run: python3 Tests/SigningPolicyTests.py
       - name: Verify and run diagnostic without personal data
         shell: zsh {0}
         run: |
