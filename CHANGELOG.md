@@ -1,3 +1,8 @@
+## Unreleased — macOS ring hover (build 15)
+
+- Hover over the overview ring to see the selected date range's token usage and estimated API cost; colored segments show their own category cost, tasks and token share, while the center shows the total.
+- Keep loading/empty values and separator gaps distinct; use localized native tooltips without enlarging the overview. Add annular hit-testing regressions.
+
 ## Unreleased — scoped log diagnostics (build 14)
 
 - Distinguish unreadable files from conflicting legacy/response counters; make the overview warning open the ledger and list affected log filenames there.

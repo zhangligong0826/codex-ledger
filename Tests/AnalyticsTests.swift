@@ -3,6 +3,16 @@ import SQLite3
 
 extension CoreTests {
     static func analyticsChecks(folder: URL) throws {
+        func ring(_ x: Double, _ y: Double, weights: [Int64] = [50, 25, 25], total: Int64 = 100) -> Int? {
+            UsageRingHitTest.categoryIndex(x: x, y: y, diameter: 48, weights: weights, total: total)
+        }
+        expect(ring(54, 30) == 0 && ring(47, 47) == 0, "ring hover starts at twelve o'clock and advances clockwise")
+        expect(ring(13, 47) == 1 && ring(13, 13) == 2, "ring hover picks the actual colored segment")
+        expect(ring(30, 30) == nil && ring(61, 30) == nil, "ring center and outside show totals rather than a category")
+        expect(ring(30, 6) == nil && ring(30, 54) == nil && ring(6, 30) == nil, "separator gaps do not select neighboring categories")
+        expect(ring(54, 30, weights: [], total: 0) == nil, "an empty ring cannot select a category")
+        let angle = 0.9925 * 2 * Double.pi - Double.pi / 2
+        expect(ring(30 + 24 * cos(angle), 30 + 24 * sin(angle), weights: [990, 5, 5], total: 1000) == 1, "very small ring segments remain hoverable")
         let resolver = ProjectResolver()
         let repository = folder.appendingPathComponent("repo with spaces"), nested = repository.appendingPathComponent("Sources")
         try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)

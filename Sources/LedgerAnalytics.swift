@@ -1,6 +1,28 @@
 import Foundation
 import SQLite3
 
+// Match the visible annulus, including its small separator gaps. Fractions
+// start at twelve o'clock and run clockwise, just like the drawn ring.
+enum UsageRingHitTest {
+    static func categoryIndex(x: Double, y: Double, diameter: Double, weights: [Int64], total: Int64, strokeWidth: Double = 12) -> Int? {
+        guard diameter > 0, total > 0 else { return nil }
+        let center = (diameter + strokeWidth) / 2
+        let dx = x - center, dy = y - center, radius = hypot(dx, dy)
+        guard radius >= max(0, (diameter - strokeWidth) / 2), radius <= center else { return nil }
+        var angle = atan2(dy, dx) + .pi / 2
+        if angle < 0 { angle += 2 * .pi }
+        let fraction = angle / (2 * .pi)
+        var start = 0.0
+        for (index, weight) in weights.enumerated() {
+            let width = Double(max(0, weight)) / Double(total), gap = min(0.003, width / 4)
+            let end = start + width
+            if fraction >= start + gap && fraction <= end - gap { return index }
+            start = end
+        }
+        return nil
+    }
+}
+
 struct ProjectIdentity: Equatable {
     var id: String
     var name: String

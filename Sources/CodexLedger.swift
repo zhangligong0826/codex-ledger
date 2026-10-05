@@ -3,6 +3,8 @@ import SwiftUI
 import ServiceManagement
 import UniformTypeIdentifiers
 
+private typealias RingViewState<Value> = State<Value>
+
 extension WorkCategory {
     var color: Color {
         switch self {
@@ -87,6 +89,26 @@ struct UsageRing: View {
     var pending = false
     var size: CGFloat = 88
     var showTotal = true
+    var scopeLabel = ""
+    var cost: CostEstimate? = nil
+    var categoryCosts: [WorkCategory: CostEstimate] = [:]
+    @RingViewState private var hoveredCategory: WorkCategory?
+    private var hoverDetails: String {
+        guard !pending else { return L("正在汇总用量…") }
+        var lines = scopeLabel.isEmpty ? [] : [scopeLabel]
+        if let category = hoveredCategory, let entry = totals.first(where: { $0.0 == category }) {
+            lines.append(L(category.title))
+            if let value = categoryCosts[category] { lines.append(L("预估 API 花费") + " · " + LedgerPricing.display(value) + " USD") }
+            lines.append(exactTokens(entry.1) + " tokens · " + L("\(entry.2) 个任务"))
+            lines.append(L("占 token 比例") + " · " + String(format: "%.1f%%", Double(entry.1) / Double(max(1, total)) * 100))
+        } else {
+            if let cost { lines.append(L("预估 API 花费") + " · " + LedgerPricing.display(cost) + " USD") }
+            lines.append(L("总 token") + " · " + exactTokens(total))
+            lines.append(L("悬停彩色区域查看各用途用量"))
+        }
+        lines.append(L("预估金额，不是订阅账单。"))
+        return lines.joined(separator: "\n")
+    }
     var body: some View {
         ZStack {
             Circle().stroke(Color.primary.opacity(0.06), lineWidth: 12)
@@ -101,6 +123,16 @@ struct UsageRing: View {
                 Text("tokens").font(.system(size: 9)).foregroundStyle(.secondary)
             }.padding(14) }
         }.frame(width: size, height: size).padding(6)
+            .contentShape(Rectangle())
+            .onContinuousHover { phase in
+                let next: WorkCategory?
+                if !pending, case .active(let point) = phase,
+                   let index = UsageRingHitTest.categoryIndex(x: point.x, y: point.y, diameter: size, weights: totals.map(\.1), total: total) {
+                    next = totals[index].0
+                } else { next = nil }
+                if next != hoveredCategory { hoveredCategory = next }
+            }
+            .help(hoverDetails)
             .accessibilityLabel(pending ? L("正在汇总用量…") : L("总用量 \(exactTokens(total)) token"))
     }
 }

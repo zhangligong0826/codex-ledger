@@ -316,5 +316,7 @@
   "部分日志无法读取，点击查看详情": "Some logs could not be read. Click for details.",
   "用量记录存在异常，点击查看详情": "Usage records are inconsistent. Click for details.",
   "受影响的日志": "Affected logs",
-  "保留可确认的用量，不重复叠加冲突计数；受影响范围的金额可能不完整。无需删除原始日志。": "Confirmed usage is retained without adding conflicting counters twice. Estimates in the affected range may be incomplete. Keep your original logs."
+  "保留可确认的用量，不重复叠加冲突计数；受影响范围的金额可能不完整。无需删除原始日志。": "Confirmed usage is retained without adding conflicting counters twice. Estimates in the affected range may be incomplete. Keep your original logs.",
+  "占 token 比例": "Share of tokens",
+  "悬停彩色区域查看各用途用量": "Hover over a colored segment for category usage"
 }

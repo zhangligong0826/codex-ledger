@@ -105,7 +105,9 @@ struct StatusPopover: View {
                                     .font(.system(size: 10)).foregroundStyle(.secondary)
                             }
                             Spacer(minLength: 0)
-                            UsageRing(totals: store.categoryTotals, total: store.snapshot.usage.total, pending: !showTotals, size: 48, showTotal: false)
+                            UsageRing(totals: store.categoryTotals, total: store.snapshot.usage.total, pending: !showTotals, size: 48, showTotal: false,
+                                      scopeLabel: L(store.scope.rawValue), cost: store.snapshot.cost,
+                                      categoryCosts: Dictionary(grouping: store.snapshot.tasks, by: \.category).mapValues { LedgerPricing.total($0) })
                         }
                         HStack {
                             Text(showTotals ? L("输入") + " " + compactTokens(store.snapshot.usage.input) : "—")
