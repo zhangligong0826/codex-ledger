@@ -317,7 +317,7 @@ struct DashboardView: View {
                             }
                         }
                     }
-                    if let entry = store.goal { GoalDetailHeader(store: store, entry: entry) }
+                    if let entry = store.goal { ScrollView(showsIndicators: false) { GoalDetailHeader(store: store, entry: entry).fixedSize(horizontal: false, vertical: true) }.frame(maxHeight: 200) }
                     if store.page != .goals {
                     Text(compactTokens(store.contextUsage.total) + " tokens · " + String(store.selectedTasks.count) + " " + L("任务轮次") + " · " + String(Set(store.selectedTasks.flatMap(\.models)).subtracting(["未知模型"]).count) + " " + L("模型"))
                         .font(.system(size: 12)).foregroundStyle(.secondary)
