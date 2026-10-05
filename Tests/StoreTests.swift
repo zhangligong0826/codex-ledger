@@ -36,6 +36,19 @@ import Foundation
         precondition(store.dataUnavailable, "failed data must not be presented as known zero usage")
         store.snapshot = LedgerSnapshot()
         precondition(!store.dataUnavailable, "a valid empty source remains known zero usage")
-        print("12/12 navigation, scope and activity-state regression checks passed")
+        store.loadDemo(); store.overviewScope = .history; store.scope = .today
+        store.openOverviewRecords(category: .coding)
+        precondition(store.scope == .history && store.categoryFilter == .coding, "ring navigation retains overview dates")
+        store.navigate(.models)
+        var turn = store.snapshot.tasks.first!
+        let original = turn.samples.first!
+        var extra = original; extra.id = "other-model-sample"; extra.model = "unrelated-synthetic-model"
+        turn.samples.append(extra); turn.usage = turn.usage + extra.usage
+        turn.modelUsage.append(ModelUsage(model: extra.model, usage: extra.usage, responses: 1, taskIDs: [turn.id]))
+        store.snapshot.tasks = [turn]; store.search = original.model
+        store.selectedDay = Calendar.current.startOfDay(for: original.date)
+        let expected = turn.samples.filter { $0.model.contains(original.model) && Calendar.current.isDate($0.date, inSameDayAs: original.date) }.reduce(TokenUsage()) { $0 + $1.usage }
+        precondition(store.contextUsage == expected && !store.selectedTasks.flatMap(\.samples).contains { $0.model == extra.model }, "daily model search cannot reintroduce other model samples")
+        print("14/14 navigation, scope and activity-state regression checks passed")
     }
 }

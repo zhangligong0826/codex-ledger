@@ -70,7 +70,7 @@ struct StatusPopover: View {
     var openDashboard: () -> Void
     @LedgerViewState private var showCostDetails = false
     @LedgerViewState private var ringMetric = "tokens"
-    private var showTotals: Bool { store.overviewReady && !store.dataUnavailable }
+    private var showTotals: Bool { store.overviewReady && !store.overviewDataUnavailable }
     private var tokenSummary: String {
         guard showTotals else { return "—" }
         let tokens = compactTokens(store.overviewSnapshot.usage.total) + " tokens"
@@ -99,7 +99,7 @@ struct StatusPopover: View {
                                         .popover(isPresented: $showCostDetails) { CostDetails(cost: store.overviewSnapshot.cost).padding(16).frame(width: 310) }
                                 }
                                 HStack(alignment: .firstTextBaseline, spacing: 4) {
-                                    Text(showTotals ? LedgerPricing.display(store.overviewSnapshot.cost) : store.dataUnavailable ? "—" : "…")
+                                    Text(showTotals ? LedgerPricing.display(store.overviewSnapshot.cost) : store.overviewDataUnavailable ? "—" : "…")
                                         .font(.system(size: 28, weight: .semibold, design: .rounded)).monospacedDigit()
                                         .lineLimit(1).minimumScaleFactor(0.6)
                                     Text("USD").font(.system(size: 9)).foregroundStyle(.secondary)
@@ -110,7 +110,7 @@ struct StatusPopover: View {
                             Spacer(minLength: 0)
                             UsageRing(totals: LedgerAnalytics.categories(store.overviewSnapshot.tasks), total: store.overviewSnapshot.usage.total, pending: !showTotals, size: 48, showTotal: false,
                                       scopeLabel: L(store.overviewScope.rawValue), cost: store.overviewSnapshot.cost,
-                                      categoryCosts: Dictionary(grouping: store.overviewSnapshot.tasks, by: \.category).mapValues { LedgerPricing.total($0) }, metric: ringMetric, selectCategory: { category in store.navigate(.tasks); store.categoryFilter = category; openDashboard() })
+                                      categoryCosts: Dictionary(grouping: store.overviewSnapshot.tasks, by: \.category).mapValues { LedgerPricing.total($0) }, metric: ringMetric, selectCategory: { category in store.openOverviewRecords(category: category); openDashboard() })
                         }
                         Picker(L("圆盘"), selection: $ringMetric) { Text("token").tag("tokens"); Text(L("金额")).tag("cost") }.pickerStyle(.segmented).controlSize(.mini)
                         if ringMetric == "cost" && store.overviewSnapshot.cost.unpricedTokens > 0 { Text(L("含未计价用量") + " · " + compactTokens(store.overviewSnapshot.cost.unpricedTokens) + " tokens").font(.system(size: 9)).foregroundStyle(.secondary) }
@@ -132,7 +132,7 @@ struct StatusPopover: View {
                     HStack {
                         Label(L("任务用途"), systemImage: "chart.bar.xaxis").font(.system(size: 11, weight: .semibold))
                         Spacer()
-                        Button(showTotals ? L("\(store.overviewSnapshot.modelUsage.filter { $0.model != "未知模型" }.count) 个模型") : "—") { store.navigate(.models); openDashboard() }.buttonStyle(.plain).font(.system(size: 10)).foregroundStyle(.secondary)
+                        Button(showTotals ? L("\(store.overviewSnapshot.modelUsage.filter { $0.model != "未知模型" }.count) 个模型") : "—") { store.openOverviewRecords(models: true); openDashboard() }.buttonStyle(.plain).font(.system(size: 10)).foregroundStyle(.secondary)
                     }
                     VStack(spacing: 8) {
                         if !store.overviewReady {
@@ -141,7 +141,7 @@ struct StatusPopover: View {
                             Text(store.overviewSnapshot.hasReadFailures ? L("需要检查数据目录") : L("这个日期范围内暂无记录")).font(.system(size: 11)).foregroundStyle(.secondary).padding(.vertical, 10)
                         }
                         ForEach(LedgerAnalytics.categories(store.overviewSnapshot.tasks).prefix(3), id: \.0) { c, value, count in
-                            Button { store.navigate(.tasks); store.categoryFilter = c; openDashboard() } label: {
+                            Button { store.openOverviewRecords(category: c); openDashboard() } label: {
                                 VStack(spacing: 4) {
                                     HStack {
                                         Text(L(c.title)).font(.system(size: 11, weight: .medium)).lineLimit(1)
@@ -165,7 +165,7 @@ struct StatusPopover: View {
                     }.padding(10).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
                     }.font(.system(size: 11))
                     if !store.overviewSnapshot.warnings.isEmpty {
-                        Button { store.navigate(.tasks); openDashboard() } label: {
+                        Button { store.openOverviewRecords(); openDashboard() } label: {
                             Label(L(store.overviewSnapshot.warningSummary), systemImage: "exclamationmark.circle").font(.system(size: 10)).foregroundStyle(.orange)
                         }.buttonStyle(.plain)
                     }
@@ -185,9 +185,9 @@ struct StatusPopover: View {
                     Button(L("目标账本")) { store.navigate(.goals); openDashboard() }
                     Button(L("项目")) { store.navigate(.projects); openDashboard() }
                     Button(L("对话")) { store.navigate(.conversations); openDashboard() }
-                    Button(L("全部工作")) { store.navigate(.tasks); openDashboard() }
-                    Button(L("查看模型用量")) { store.navigate(.models); openDashboard() }
-                    Button(L("导出 CSV…")) { store.exportCSV(models: false) }.disabled(store.busy || !store.overviewReady || store.dataUnavailable)
+                    Button(L("全部工作")) { store.openOverviewRecords(); openDashboard() }
+                    Button(L("查看模型用量")) { store.openOverviewRecords(models: true); openDashboard() }
+                    Button(L("导出 CSV…")) { store.exportCSV(models: false) }.disabled(!store.overviewReady || store.overviewDataUnavailable)
                     Button(L("设置…")) { store.navigate(.settings); openDashboard() }
                     Picker(L("语言"), selection: Binding(get: { store.language }, set: store.setLanguage)) { Text("English").tag("en"); Text("简体中文").tag("zh") }
                     Picker(L("外观"), selection: Binding(get: { store.appearance }, set: store.setAppearance)) { Text(L("跟随系统")).tag("system"); Text(L("浅色")).tag("light"); Text(L("深色")).tag("dark") }

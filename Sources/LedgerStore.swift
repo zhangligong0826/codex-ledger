@@ -167,6 +167,8 @@ struct SharePreview: Identifiable {
     var logsAreEmpty: Bool { logs.isEmpty && !LedgerPreferences.isDemo }
     var knownModelCount: Int { snapshot.modelUsage.filter { $0.model != "未知模型" }.count }
     var categoryTotals: [(WorkCategory, Int64, Int)] { LedgerAnalytics.categories(snapshot.tasks) }
+    var overviewDataUnavailable: Bool { overviewReady && overviewSnapshot.tasks.isEmpty && activityReady && activity.allSatisfy { $0.responses == 0 } && !overviewSnapshot.warnings.isEmpty }
+    func openOverviewRecords(category: WorkCategory? = nil, models: Bool = false) { navigate(models ? .models : .tasks); clearFilters(); scope = overviewScope; categoryFilter = category }
     var dataUnavailable: Bool { rangeReady && snapshot.tasks.isEmpty && activityReady && activity.allSatisfy { $0.responses == 0 } && !snapshot.warnings.isEmpty }
     static let panelWidth: CGFloat = 300
     @Published var categoriesExpanded = false { didSet { didUpdate?() } }
@@ -298,7 +300,7 @@ struct SharePreview: Identifiable {
         applyUsageFilters(contextTasks).filter { task in
             (categoryFilter == nil || task.category == categoryFilter) && (modelFilter == nil || task.models.contains(modelFilter!)) &&
             (search.isEmpty || [task.title, task.workingDirectory, task.projectName, task.sessionID, task.models.joined(separator: " ")].contains { $0.localizedCaseInsensitiveContains(search) })
-        }
+        }.sorted { a, b in sortOrder == "recent" ? a.lastActivity > b.lastActivity : sortOrder == "tokens" ? a.usage.total > b.usage.total : a.cost.totalUSD > b.cost.totalUSD }
     }
     var filteredProjects: [ProjectUsage] { LedgerAnalytics.projects(applyUsageFilters(snapshot.tasks), titles: cachedTitles).filter { search.isEmpty || ($0.name == ProjectIdentity.unknown.name ? L($0.name) : $0.name).localizedCaseInsensitiveContains(search) || $0.path.localizedCaseInsensitiveContains(search) }.sorted { a, b in sortOrder == "recent" ? a.lastActivity > b.lastActivity : sortOrder == "tokens" ? a.usage.total > b.usage.total : a.cost.totalUSD > b.cost.totalUSD } }
     var filteredConversations: [ConversationUsage] {
@@ -306,7 +308,11 @@ struct SharePreview: Identifiable {
         let sets = Dictionary(uniqueKeysWithValues: contextConversations.map { ($0.id, $0.projectIDs) })
         return LedgerAnalytics.conversations(applyUsageFilters(contextConversations.flatMap(\.tasks)), titles: titles, projectSets: sets).filter { chat in search.isEmpty || ([chat.title, chat.id, chat.models.joined(separator: " ")] + chat.tasks.map(\.projectPath)).contains { $0.localizedCaseInsensitiveContains(search) } }.sorted { a, b in sortOrder == "recent" ? a.lastActivity > b.lastActivity : sortOrder == "tokens" ? a.usage.total > b.usage.total : a.cost.totalUSD > b.cost.totalUSD }
     }
-    var filteredModels: [ModelUsage] { LedgerAnalytics.models(applyUsageFilters(contextTasks)).filter { search.isEmpty || L($0.model).localizedCaseInsensitiveContains(search) } }
+    var filteredModels: [ModelUsage] { LedgerAnalytics.models(applyUsageFilters(contextTasks)).filter { search.isEmpty || L($0.model).localizedCaseInsensitiveContains(search) }.sorted { a, b in
+        if sortOrder == "recent" { return modelActivity(a.model) > modelActivity(b.model) }
+        return sortOrder == "tokens" ? a.usage.total > b.usage.total : a.cost.totalUSD > b.cost.totalUSD
+    } }
+    private func modelActivity(_ model: String) -> Date { contextTasks.flatMap(\.samples).filter { $0.model == model }.map(\.date).max() ?? .distantPast }
     private var baseSelectedTasks: [LedgerTask] {
         if page == .goals && selectedGoalID == nil && selectedConversationID == nil { return filteredGoals.flatMap(\.tasks) }
         if page == .projects && selectedProjectID == nil && selectedConversationID == nil { return filteredProjects.flatMap(\.tasks) }
@@ -316,7 +322,7 @@ struct SharePreview: Identifiable {
             return contextTasks.compactMap { task in
                 let usage = task.modelUsage.filter { models.contains($0.model) }
                 guard !usage.isEmpty else { return nil }
-                var value = task; value.modelUsage = usage; value.models = usage.map(\.model)
+                var value = task; value.modelUsage = usage; value.models = usage.map(\.model); value.samples = task.samples.filter { models.contains($0.model) }
                 value.usage = usage.reduce(TokenUsage()) { $0 + $1.usage }; value.responses = usage.reduce(0) { $0 + $1.responses }
                 return value
             }
@@ -405,7 +411,7 @@ struct SharePreview: Identifiable {
         }
     }
     func makeShareCard(overview: Bool = false) {
-        guard overview ? overviewReady : rangeReady, activityReady, !isSharing, !dataUnavailable, overview || !requiresGoalBook || goalBookReadable else { return }
+        guard overview ? overviewReady : rangeReady, activityReady, !isSharing, !(overview ? overviewDataUnavailable : dataUnavailable), overview || !requiresGoalBook || goalBookReadable else { return }
         let snapshot = overview ? overviewSnapshot : self.snapshot
         let scope = overview ? overviewScope : self.scope
         let now = snapshot.refreshedAt
@@ -481,10 +487,10 @@ struct SharePreview: Identifiable {
         }
     }
     func exportCSV(models modelMode: Bool? = nil, turns: Bool = false) {
-        guard modelMode != nil ? overviewReady : rangeReady, !dataUnavailable, modelMode != nil || !requiresGoalBook || goalBookReadable else { return }
+        guard modelMode != nil ? overviewReady : rangeReady, !(modelMode != nil ? overviewDataUnavailable : dataUnavailable), modelMode != nil || !requiresGoalBook || goalBookReadable else { return }
         let (contents, kind) = csvExport(models: modelMode, turns: turns)
         let panel = NSSavePanel(); panel.allowedContentTypes = [.commaSeparatedText]
-        panel.nameFieldStringValue = "Codex-\(kind)-\(L(scope.rawValue))-\(Date().formatted(.iso8601.year().month().day().dateSeparator(.dash))).csv"
+        panel.nameFieldStringValue = "Codex-\(kind)-\(L((modelMode != nil ? overviewScope : scope).rawValue))-\(Date().formatted(.iso8601.year().month().day().dateSeparator(.dash))).csv"
         presentFilePanel(panel) { [weak self] response in
             guard response == .OK, let url = panel.url else { return }
             do { try contents.write(to: url, atomically: true, encoding: .utf8) }
@@ -621,7 +627,11 @@ struct SharePreview: Identifiable {
         }
     }
     var goal: GoalUsage? { goals.first { $0.id == selectedGoalID } }
-    var filteredGoals: [GoalUsage] { goalBook.summaries(current: applyUsageFilters(snapshot.tasks), lifetime: lifetime.tasks).filter { search.isEmpty || $0.goal.name.localizedCaseInsensitiveContains(search) || ($0.tasks + $0.lifetimeTasks).contains { [$0.title, $0.projectPath].contains { $0.localizedCaseInsensitiveContains(search) } } } }
+    var filteredGoals: [GoalUsage] { goalBook.summaries(current: applyUsageFilters(snapshot.tasks), lifetime: lifetime.tasks).filter { search.isEmpty || $0.goal.name.localizedCaseInsensitiveContains(search) || ($0.tasks + $0.lifetimeTasks).contains { [$0.title, $0.projectPath].contains { $0.localizedCaseInsensitiveContains(search) } } }.sorted { a, b in
+        if sortOrder == "recent" { return (a.lastActivity ?? .distantPast) > (b.lastActivity ?? .distantPast) }
+        if sortOrder == "tokens" { return (a.goal.completionUsage ?? a.lifetimeUsage).total > (b.goal.completionUsage ?? b.lifetimeUsage).total }
+        return (a.goal.completionCost ?? a.lifetimeCost).totalUSD > (b.goal.completionCost ?? b.lifetimeCost).totalUSD
+    } }
     var unassignedTasks: [LedgerTask] { snapshot.tasks.filter { goalBook.owner($0) == nil } }
     func openGoal(_ id: String) {
         navigation.append(viewContext)

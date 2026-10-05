@@ -54,7 +54,9 @@ enum LedgerDemo {
                 part.input = split(task.usage.input); part.cached = split(task.usage.cached)
                 part.output = split(task.usage.output); part.reasoning = split(task.usage.reasoning)
                 cost = cost + LedgerPricing.estimate(model: task.models[0], usage: part)
+                result.tasks[index].samples.append(UsageSample(id: task.id + "-response-" + String(call), sessionID: task.sessionID, turnID: task.id, rootTurnID: task.id, date: task.date, model: task.models[0], usage: part))
             }
+            result.tasks[index].startedAt = task.date
             result.tasks[index].modelUsage = [ModelUsage(model: task.models[0], usage: task.usage, responses: task.responses, taskIDs: [task.id], cost: cost)]
         }
         result.tasks.sort { $0.usage.total > $1.usage.total }

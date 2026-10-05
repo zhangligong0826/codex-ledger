@@ -97,14 +97,19 @@ import UniformTypeIdentifiers
             Text("LOCAL").font(.system(size: 8, weight: .bold)).foregroundStyle(.secondary)
         }
     }
+    private var amountDateLabel: String {
+        if value.completionCost != nil { return T("完成时") + " · " + (value.completionDate.map { value.dateLabel($0) } ?? "") }
+        return [value.range, value.calendarRange, value.filtered ? T("已筛选") : ""].filter { !$0.isEmpty }.joined(separator: " · ")
+    }
+    private var primaryTurnsLabel: String { (value.primaryTurns.map { String($0) } ?? "—") + " " + T("任务轮次") }
     private var amount: some View {
         VStack(alignment: .leading, spacing: 5) {
             Text(T(value.completionCost == nil ? "预估 API 花费" : "完成时预估 API 花费") + " · USD").font(.system(size: 10)).foregroundStyle(.secondary)
             Text(money(value.primaryCost)).font(.system(size: 38, weight: .semibold, design: .rounded)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.35)
-            Text(value.completionCost == nil ? value.range + " · " + value.calendarRange + (value.filtered ? " · " + T("已筛选") : "") : T("完成时") + " · " + (value.completionDate.map { value.dateLabel($0) } ?? "")).font(.system(size: 10)).foregroundStyle(.secondary)
+            Text(amountDateLabel).font(.system(size: 10)).foregroundStyle(.secondary)
             HStack(spacing: 12) {
                 Text(compactTokens(value.primaryUsage.total) + " tokens")
-                Text((value.primaryTurns.map(String.init) ?? "—") + " " + T("任务轮次"))
+                Text(primaryTurnsLabel)
                 if value.completionCost == nil { Text(String(value.models) + " " + T("模型")) }
             }.font(.system(size: 10, weight: .medium)).lineLimit(1)
         }
@@ -178,7 +183,7 @@ import UniformTypeIdentifiers
             if let image { Image(nsImage: image).resizable().scaledToFit().frame(width: 270, height: 360).background(Color.primary.opacity(0.04)).accessibilityLabel(L("分享卡片")) }
             else { Text(L("图片生成失败")) }
             if let snapshot = preview.snapshot {
-                Text(L(snapshot.kind) + " · " + snapshot.privateTitle + " · " + snapshot.range + " · " + snapshot.calendarRange + (snapshot.filtered ? " · " + L("已筛选") : "")).font(.caption).foregroundStyle(.secondary)
+                Text(scopeSummary(snapshot)).font(.caption).foregroundStyle(.secondary)
                 if snapshot.completionCost != nil { Text(L("主金额为完成时估算，热力图为当前归属的近 30 天用量")).font(.caption).foregroundStyle(.secondary) }
                 TextField(L("公开标题（可选）"), text: $title).onChange(of: title) { _, value in if value.count > 120 { title = String(value.prefix(120)) } }
                 HStack { Toggle(L("显示原始名称"), isOn: $showName); Spacer(); Toggle(L("深色卡片"), isOn: $dark) }
@@ -190,6 +195,11 @@ import UniformTypeIdentifiers
                 Button(L("保存 PNG…")) { save() }.disabled(image == nil).keyboardShortcut(.defaultAction)
             }
         }.padding(18) }.scrollIndicators(.hidden).frame(width: 430, height: min(720, (NSScreen.main?.visibleFrame.height ?? 800) - 80)).onAppear { dark = colorScheme == .dark }
+    }
+    private func scopeSummary(_ snapshot: ShareSnapshot) -> String {
+        var parts = [L(snapshot.kind), snapshot.privateTitle, snapshot.range, snapshot.calendarRange]
+        if snapshot.filtered { parts.append(L("已筛选")) }
+        return parts.joined(separator: " · ")
     }
     private func copy() {
         guard let image else { return }
@@ -213,15 +223,18 @@ import UniformTypeIdentifiers
     @ObservedObject var store: LedgerStore
     let overview: Bool
     private var ready: Bool { overview ? store.overviewReady : store.rangeReady }
+    private var unavailable: Bool { overview ? store.overviewDataUnavailable : store.dataUnavailable }
     var body: some View {
         Menu {
-            Button(L("生成分享卡片")) { store.makeShareCard(overview: overview) }.disabled(!ready || !store.activityReady || store.isSharing || store.dataUnavailable)
+            Button(L("生成分享卡片")) { store.makeShareCard(overview: overview) }.disabled(!ready || !store.activityReady || store.isSharing || unavailable || (!overview && store.requiresGoalBook && !store.goalBookAvailable))
             Button(L("保存当前界面")) { store.captureInterface?(overview) }
             Divider()
-            Button(L("导出 CSV")) { store.exportCSV(models: overview ? false : nil) }.disabled(!ready || store.dataUnavailable)
-            if !ready { Text(L("正在整理日志，请稍候")) }
+            Button(L("导出 CSV")) { store.exportCSV(models: overview ? false : nil) }.disabled(!ready || unavailable || (!overview && store.requiresGoalBook && !store.goalBookAvailable))
+            if !overview && store.requiresGoalBook && !store.goalBookAvailable { Text(L("目标账本无法读取，原有数据已保留。")) }
+            else if unavailable { Text(L("读取失败")) }
+            else if !ready { Text(L("正在整理日志，请稍候")) }
             else if !store.activityReady { Text(L("热力图仍在加载，CSV 可以导出")) }
-            if ready { Text(L("统计时间") + " " + store.snapshot.refreshedAt.formatted(.dateTime.hour().minute().second())) }
+            if ready { Text(L("统计时间") + " " + (overview ? store.overviewSnapshot : store.snapshot).refreshedAt.formatted(.dateTime.hour().minute().second())) }
         } label: { Image(systemName: "square.and.arrow.up") }
         .menuStyle(.borderlessButton).fixedSize()
         .disabled(!overview && store.requiresGoalBook && !store.goalBookAvailable)

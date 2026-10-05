@@ -93,7 +93,7 @@ public sealed class LedgerState {
         bool Match(string value)=>Search.Length==0||value.Contains(Search,StringComparison.OrdinalIgnoreCase);
         IEnumerable<LedgerTurn> result=rows;
         if(Page=="models"&&ChatID==null) {
-            return rows.Select(t=>{
+            return rows.Where(t=>Category==null||Category==t.Category).Select(t=>{
                 var samples=t.Samples.Where(s=>(Model==null||s.Model==Model)&&Match(s.Model)).ToArray();
                 return t with{Samples=samples,Usage=samples.Aggregate(new TokenUsage(),(u,s)=>u+s.Usage),Responses=samples.Length};
             }).Where(t=>t.Samples.Count>0).ToArray();
