@@ -124,7 +124,7 @@ struct StatusPopover: View {
                         if !store.rangeReady {
                             HStack { ProgressView().controlSize(.small); Text(L("正在整理日志，请稍候")).font(.system(size: 11)) }.padding(.vertical, 10)
                         } else if store.snapshot.tasks.isEmpty {
-                            Text(store.snapshot.warnings.isEmpty ? L("这个日期范围内暂无记录") : L("需要检查数据目录")).font(.system(size: 11)).foregroundStyle(.secondary).padding(.vertical, 10)
+                            Text(store.snapshot.hasReadFailures ? L("需要检查数据目录") : L("这个日期范围内暂无记录")).font(.system(size: 11)).foregroundStyle(.secondary).padding(.vertical, 10)
                         }
                         ForEach(store.categoryTotals.prefix(3), id: \.0) { c, value, count in
                             Button { store.navigate(.tasks); store.categoryFilter = c; openDashboard() } label: {
@@ -149,7 +149,11 @@ struct StatusPopover: View {
                             HStack { Text(L("查看目标账本")); Spacer(); Image(systemName: "arrow.up.right") }.font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary)
                         }.buttonStyle(.plain)
                     }.padding(10).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
-                    if !store.snapshot.warnings.isEmpty { Label(L("部分日志不可读，账本内可查看详情"), systemImage: "exclamationmark.circle").font(.system(size: 10)).foregroundStyle(.orange) }
+                    if !store.snapshot.warnings.isEmpty {
+                        Button { store.navigate(.tasks); openDashboard() } label: {
+                            Label(L(store.snapshot.warningSummary), systemImage: "exclamationmark.circle").font(.system(size: 10)).foregroundStyle(.orange)
+                        }.buttonStyle(.plain)
+                    }
                 }.padding(.horizontal, 12).padding(.bottom, 10)
             }.id(store.scope)
             if store.busy { HStack { ProgressView().controlSize(.mini); Text(store.scanStatus).font(.system(size: 10)).lineLimit(1); Spacer() }.padding(.horizontal, 14).padding(.bottom, 6) }
@@ -309,6 +313,17 @@ struct DashboardView: View {
                     }
                     if store.busy { HStack { ProgressView().controlSize(.small); Text(store.scanStatus).font(.system(size: 11)).foregroundStyle(.secondary) } }
                     if !store.snapshot.warnings.isEmpty { Text(store.snapshot.warnings.prefix(3).map(L).joined(separator: "\n")).font(.system(size: 11)).foregroundStyle(.orange).textSelection(.enabled) }
+                    if !store.snapshot.logIssues.isEmpty {
+                        DisclosureGroup(L("受影响的日志")) {
+                            ForEach(store.snapshot.logIssues) { issue in
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(URL(fileURLWithPath: issue.path).lastPathComponent).font(.system(size: 10, design: .monospaced)).textSelection(.enabled)
+                                    Text(issue.messages.map(L).joined(separator: "\n")).font(.system(size: 11)).foregroundStyle(.orange)
+                                }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 4)
+                            }
+                            Text(L("保留可确认的用量，不重复叠加冲突计数；受影响范围的金额可能不完整。无需删除原始日志。")).font(.system(size: 10)).foregroundStyle(.secondary)
+                        }.font(.system(size: 11))
+                    }
                     HStack {
                         Text(listTitle).font(.system(size: 14, weight: .semibold)).lineLimit(1)
                         Spacer(minLength: 6)
@@ -470,7 +485,7 @@ struct DashboardView: View {
     func emptyState(loading: Bool = false) -> some View {
         VStack(spacing: 10) {
             if loading { ProgressView() } else { Image(systemName: "tray").font(.system(size: 28)).foregroundStyle(.secondary) }
-            Text(loading ? L("正在整理日志，请稍候") : store.snapshot.warnings.isEmpty ? L("这个范围内没有匹配的任务") : L("需要检查数据目录")).font(.system(size: 13))
+            Text(loading ? L("正在整理日志，请稍候") : store.snapshot.hasReadFailures ? L("需要检查数据目录") : L("这个范围内没有匹配的任务")).font(.system(size: 13))
             if !loading {
                 Text(L("可以切换日期、清除筛选，或在设置中检查数据目录。")).font(.system(size: 11)).foregroundStyle(.secondary).multilineTextAlignment(.center)
                 HStack { Button(L("清除筛选")) { store.clearFilters() }; Button(L("设置…")) { store.navigate(.settings) } }

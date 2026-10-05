@@ -74,7 +74,7 @@ public sealed class LogParser {
                 if(type=="response_item"&&p.S("type")=="message"&&p.S("role")=="assistant")Artifacts(string.Join("\n",p.J("content").Items().Select(x=>x.S("text"))),turn);
             }
         }
-        var reconciled=UsageReconciler.Reconcile(legacy,structured,intervals);log.Samples=reconciled.Samples;log.IntegrityWarnings=reconciled.Warnings;
+        var reconciled=UsageReconciler.Reconcile(legacy,structured,intervals);log.Samples=reconciled.Samples;log.IntegrityWarnings=reconciled.Warnings;log.IntegrityDates=reconciled.Dates;
         if(log.SessionID.Length==0){log.SessionID="log:"+Path.GetFileNameWithoutExtension(path);foreach(var i in log.Turns.Values)i.SessionID=log.SessionID;log.Samples=log.Samples.Select(s=>s with{SessionID=log.SessionID}).ToList();}
         var referenced=log.Samples.Select(s=>s.TurnID).ToHashSet();log.Turns=log.Turns.Where(x=>referenced.Contains(x.Key)).ToDictionary();return log;
     }

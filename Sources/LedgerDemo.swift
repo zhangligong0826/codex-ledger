@@ -12,6 +12,7 @@ enum LedgerDemo {
     }
     static func snapshot(empty: Bool = false, error: Bool = false, scope: DateScope = .today) -> LedgerSnapshot {
         var result = LedgerSnapshot(files: empty ? 0 : 8, warnings: error ? ["没有找到 sessions 或 archived_sessions。请在设置中选择 Codex 数据目录。"] : [])
+        result.hasReadFailures = error
         guard !empty else { return result }
         let projects = [ProjectIdentity(id: "demo-atlas", name: "Atlas", path: "/Users/demo/Projects/Atlas"), ProjectIdentity(id: "demo-research", name: "Research", path: "/Users/demo/Projects/Research"), .unknown]
         let amounts: [(Int, String, WorkCategory, Int64, String)] = [

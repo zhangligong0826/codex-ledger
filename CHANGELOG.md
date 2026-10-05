@@ -1,3 +1,10 @@
+## Unreleased — scoped log diagnostics (build 14)
+
+- Distinguish unreadable files from conflicting legacy/response counters; make the overview warning open the ledger and list affected log filenames there.
+- Apply dated accounting conflicts to their affected date ranges while retaining conservative warnings for undated conflicts, corrupt lines and read failures. Historical goal completion still checks complete lifetime coverage.
+- Reparse only old cached entries that contain conflicts without dates; reuse unaffected entries. Preserve all accounting totals and source logs.
+- Add cross-platform date-scope checks and selective cache migration regressions. Public Beta.3 packages remain build 12.
+
 ## Unreleased — macOS performance (build 13)
 
 - Persist a private, checksummed, disposable parsed-log index across launches; reparse changed logs and rebuild incompatible/corrupt entries.

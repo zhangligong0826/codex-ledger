@@ -18,6 +18,10 @@ enum LedgerText {
 
         "部分完整日志行损坏，用量可能不完整。": "Some complete log lines are corrupt; recorded usage may be incomplete.",
         "新旧日志计数无法对齐，用量可能不完整。": "Legacy and response records cannot be reconciled; usage may be incomplete.",
+        "部分日志无法读取，点击查看详情": "Some logs could not be read. Click for details.",
+        "用量记录存在异常，点击查看详情": "Usage records are inconsistent. Click for details.",
+        "受影响的日志": "Affected logs",
+        "保留可确认的用量，不重复叠加冲突计数；受影响范围的金额可能不完整。无需删除原始日志。": "Confirmed usage is retained without adding conflicting counters twice. Estimates in the affected range may be incomplete. Keep your original logs.",
         "账本备份或保存失败，原有数据未覆盖。": "Backup or save failed. Existing stored data was not overwritten.",
         "备份无效或恢复失败，原有账本未覆盖。": "Invalid backup or restore failed. Existing ledger was not overwritten.",
         "导入将替换当前目录的目标账本，原有账本会先备份。": "Import replaces the goal ledger for this source. Its current data will be backed up first.",

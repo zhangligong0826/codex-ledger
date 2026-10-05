@@ -110,15 +110,18 @@ struct UsageSample: Codable {
 
 // Reconcile counters over their recorded intervals; never silently choose one whole-file format.
 enum UsageReconciler {
-    static func reconcile(legacy: [UsageSample], modern: [UsageSample], intervals: [String: Date]) -> (samples: [UsageSample], warnings: [String]) {
-        guard !modern.isEmpty else { return (legacy, []) }
+    static func reconcile(legacy: [UsageSample], modern: [UsageSample], intervals: [String: Date]) -> (samples: [UsageSample], warnings: [String], dates: [Date]) {
+        guard !modern.isEmpty else { return (legacy, [], []) }
         var residuals: [UsageSample] = [], warnings: [String] = []
+        var issueDates = Set<Date>()
         for old in legacy {
             let start = intervals[old.id] ?? .distantPast
             let covered = modern.filter { $0.date > start && $0.date <= old.date }
             let used = covered.reduce(TokenUsage()) { $0 + $1.usage }
             guard used.input <= old.usage.input, used.output <= old.usage.output else {
                 warnings.append("新旧日志计数无法对齐，用量可能不完整。")
+                issueDates.insert(old.date)
+                issueDates.formUnion(covered.map(\.date))
                 continue
             }
             var remaining = old
@@ -138,9 +141,10 @@ enum UsageReconciler {
             if a.input == b.input && a.output == b.output && residuals.contains(where: { $0.turnID == turn }) {
                 residuals.removeAll { $0.turnID == turn }
                 warnings.append("新旧日志计数无法对齐，用量可能不完整。")
+                issueDates.formUnion((legacy + modern).filter { $0.turnID == turn }.map(\.date))
             }
         }
-        return ((modern + residuals).sorted { $0.date == $1.date ? $0.id < $1.id : $0.date < $1.date }, Array(Set(warnings)).sorted())
+        return ((modern + residuals).sorted { $0.date == $1.date ? $0.id < $1.id : $0.date < $1.date }, Array(Set(warnings)).sorted(), issueDates.sorted())
     }
 }
 
@@ -169,6 +173,9 @@ struct ParsedLog: Codable {
     var samples: [UsageSample] = []
     var malformed = 0
     var integrityWarnings: [String] = []
+    // Optional for compatibility with the existing private index. Entries with
+    // warnings but no provenance are reparsed; clean entries remain reusable.
+    var integrityDates: [Date]?
     var usesResponseRecords = false
     var workingDirectory = ""
     var firstPrompt = ""
@@ -198,6 +205,12 @@ struct LedgerTask: Identifiable {
     }
 }
 
+struct LogIssue: Identifiable {
+    let path: String
+    let messages: [String]
+    var id: String { path }
+}
+
 struct LedgerSnapshot {
     var tasks: [LedgerTask] = []
     var modelUsage: [ModelUsage] = []
@@ -206,6 +219,11 @@ struct LedgerSnapshot {
     var files = 0
     var malformed = 0
     var warnings: [String] = []
+    var logIssues: [LogIssue] = []
+    var hasReadFailures = false
+    var warningSummary: String {
+        hasReadFailures ? "部分日志无法读取，点击查看详情" : "用量记录存在异常，点击查看详情"
+    }
     var refreshedAt = Date()
     var sourcePath = ""
     var timezone = TimeZone.current.identifier
@@ -486,6 +504,7 @@ final class LogParser {
         let reconciliation = UsageReconciler.reconcile(legacy: legacy, modern: structured, intervals: intervals)
         result.samples = reconciliation.samples.filter { $0.date >= cutoff }
         result.integrityWarnings = reconciliation.warnings
+        result.integrityDates = reconciliation.dates
         if result.sessionID.isEmpty {
             result.sessionID = "log:" + url.deletingPathExtension().lastPathComponent
             for key in result.turns.keys { result.turns[key]?.sessionID = result.sessionID }
@@ -546,7 +565,8 @@ final class LedgerScanner: @unchecked Sendable {
               let entry = try? PropertyListDecoder().decode(CacheEntry.self, from: bytes), entry.version == 1, entry.root == cacheRoot,
               hash(entry.payload) == entry.digest,
               let log = try? PropertyListDecoder().decode(ParsedLog.self, from: entry.payload),
-              log.path == path, log.size == size, log.modified == modified else { return nil }
+              log.path == path, log.size == size, log.modified == modified,
+              log.integrityWarnings.isEmpty || log.integrityDates != nil else { return nil }
         return log
     }
     private func persist(_ log: ParsedLog) {
@@ -626,10 +646,20 @@ final class LedgerScanner: @unchecked Sendable {
         return (logs, normalizedWarnings, revision)
     }
     func snapshot(logs: [ParsedLog], start: Date, end: Date, root: String = "", overrides: [String: String] = [:], warnings: [String] = []) -> LedgerSnapshot {
-        let parseWarnings = logs.flatMap(\.integrityWarnings)
+        // Only dated accounting conflicts in the selected range affect its
+        // completeness. Read failures/corrupt lines have unknown coverage and
+        // must remain conservative across all ranges.
+        let issues = logs.compactMap { log -> LogIssue? in
+            let relevant = log.integrityDates.map { dates in dates.contains { $0 >= start && $0 < end } } ?? true
+            let messages = (relevant ? log.integrityWarnings : []) + (log.malformed > 0 ? ["部分完整日志行损坏，用量可能不完整。"] : [])
+            return messages.isEmpty ? nil : LogIssue(path: log.path, messages: messages)
+        }.sorted { $0.path < $1.path }
+        let parseWarnings = issues.flatMap(\.messages)
         let malformed = logs.reduce(0) { $0 + $1.malformed }
         let coverageWarnings = warnings + parseWarnings + (malformed > 0 ? ["部分完整日志行损坏，用量可能不完整。"] : [])
         var result = LedgerSnapshot(files: logs.count, malformed: malformed, warnings: Array(Set(coverageWarnings)).sorted(), sourcePath: root)
+        result.logIssues = issues
+        result.hasReadFailures = !warnings.isEmpty
         var groups: [String: [UsageSample]] = [:]
         var infos: [String: TurnInfo] = [:], internalSessions = Set<String>()
         for log in logs {

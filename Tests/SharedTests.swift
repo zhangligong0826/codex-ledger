@@ -37,6 +37,13 @@ extension CoreTests {
                 let enriched = LedgerAnalytics.enrich(snap, resolver: ProjectResolver(), titles: [:])
                 expect(enriched.projects.reduce(CostEstimate()) { $0 + $1.cost } == snap.cost && enriched.conversations.reduce(CostEstimate()) { $0 + $1.cost } == snap.cost, prefix + " project/chat equality")
             }
+            if value["complete"] as? Bool == false {
+                let next = DateScope.today.interval(now: now.addingTimeInterval(86400), calendar: scanner.calendar)
+                let unaffected = scanner.snapshot(logs: logs, start: next.start, end: next.end)
+                let lifetime = scanner.snapshot(logs: logs, start: .distantPast, end: next.end)
+                expect(unaffected.isComplete && unaffected.logIssues.isEmpty, "shared historical conflicts exclude unrelated days")
+                expect(!lifetime.isComplete && !lifetime.logIssues.isEmpty && !lifetime.hasReadFailures, "shared historical conflicts remain disclosed as accounting issues")
+            }
             let month = scanner.snapshot(logs: logs, start: DateScope.month.interval(now: now, calendar: scanner.calendar).start, end: DateScope.month.interval(now: now, calendar: scanner.calendar).end)
             let days = scanner.dailyUsage(logs: logs, now: now)
             expect(days.count == 30 && days.reduce(CostEstimate()) { $0 + $1.cost } == month.cost, file.lastPathComponent + " shared monthly daily costs")

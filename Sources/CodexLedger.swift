@@ -336,6 +336,9 @@ final class UsagePanel: NSPanel {
         let snap = scanner.snapshot(logs: result.logs, start: range.start, end: range.end, root: root, warnings: result.warnings)
         let enriched = LedgerAnalytics.enrich(snap, resolver: ProjectResolver(), titles: ConversationMetadata.titles(root: URL(fileURLWithPath: root)))
         var output: [String: Any] = ["files": snap.files, "tasks": snap.tasks.count, "projects": enriched.projects.count, "conversations": enriched.conversations.count, "projectTotal": enriched.projects.reduce(Int64(0)) { $0 + $1.usage.total }, "conversationTotal": enriched.conversations.reduce(Int64(0)) { $0 + $1.usage.total }, "input": snap.usage.input, "cached": snap.usage.cached, "output": snap.usage.output, "reasoning": snap.usage.reasoning, "total": snap.usage.total, "categories": Dictionary(WorkCategory.allCases.map { c in (c.rawValue, snap.tasks.filter { $0.category == c }.reduce(Int64(0)) { $0 + $1.usage.total }) }, uniquingKeysWith: { a, _ in a }), "warnings": snap.warnings, "malformed": snap.malformed, "seconds": Date().timeIntervalSince(start)]
+        output["isComplete"] = snap.isComplete
+        output["affectedLogCount"] = snap.logIssues.count
+        output["hasReadFailures"] = snap.hasReadFailures
         output["estimatedAPIUSD"] = LedgerPricing.decimalString(snap.cost.totalUSD)
         output["pricedTokens"] = snap.cost.pricedTokens
         output["unpricedTokens"] = snap.cost.unpricedTokens

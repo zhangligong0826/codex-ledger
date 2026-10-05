@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 @main struct CoreTests {
     static var failures = 0
@@ -91,6 +92,38 @@ import Foundation
         expect(TaskClassifier.associatedFile("/Users/test/Documents/Codex/project/outputs/Report.pptx"), "delivered user file is retained")
 
         let partialFile = folder.appendingPathComponent("partial.jsonl")
+        let conflictFile = folder.appendingPathComponent("conflict.jsonl")
+        try (meta + start + context + response("conflict-r", 100, 10, "2026-10-03T23:59:00Z") + count(50, 5, "2026-10-03T23:59:01Z")).write(to: conflictFile, atomically: true, encoding: .utf8)
+        let conflict = try parser.parse(url: conflictFile)
+        let affected = scanner.snapshot(logs: [conflict], start: midnight.addingTimeInterval(-86400), end: midnight)
+        let unaffected = scanner.snapshot(logs: [conflict], start: midnight, end: nextDay)
+        expect(!affected.isComplete && affected.logIssues.count == 1 && !affected.hasReadFailures, "counter conflicts disclose the affected log without claiming a read failure")
+        expect(affected.warningSummary == "用量记录存在异常，点击查看详情" && affected.usage.total == 110, "conflicts preserve modern usage without adding a smaller counter twice")
+        expect(unaffected.isComplete && unaffected.logIssues.isEmpty, "historical accounting conflicts do not taint an unrelated date range")
+        var undated = conflict; undated.integrityDates = nil
+        expect(!scanner.snapshot(logs: [undated], start: midnight, end: nextDay).isComplete, "unknown issue dates remain conservative")
+        let unreadable = scanner.snapshot(logs: [], start: midnight, end: nextDay, warnings: ["读取失败"])
+        expect(unreadable.hasReadFailures && unreadable.warningSummary == "部分日志无法读取，点击查看详情" && !unreadable.isComplete, "actual read failures keep an actionable distinct warning")
+        let warningRoot = folder.appendingPathComponent("warning-source")
+        let warningSessions = warningRoot.appendingPathComponent("sessions")
+        try FileManager.default.createDirectory(at: warningSessions, withIntermediateDirectories: true)
+        try FileManager.default.copyItem(at: conflictFile, to: warningSessions.appendingPathComponent("conflict.jsonl"))
+        try FileManager.default.copyItem(at: file, to: warningSessions.appendingPathComponent("clean.jsonl"))
+        let warningIndex = folder.appendingPathComponent("warning-index")
+        _ = LedgerScanner(timezone: timezone, cacheDirectory: warningIndex).scan(root: warningRoot, now: midnight, days: nil)
+        for case let url as URL in FileManager.default.enumerator(at: warningIndex, includingPropertiesForKeys: nil)! where url.pathExtension == "plist" {
+            var entry = try PropertyListSerialization.propertyList(from: Data(contentsOf: url), format: nil) as! [String: Any]
+            var payload = try PropertyListSerialization.propertyList(from: entry["payload"] as! Data, format: nil) as! [String: Any]
+            payload.removeValue(forKey: "integrityDates")
+            let bytes = try PropertyListSerialization.data(fromPropertyList: payload, format: .binary, options: 0)
+            entry["payload"] = bytes
+            entry["digest"] = SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
+            try PropertyListSerialization.data(fromPropertyList: entry, format: .binary, options: 0).write(to: url)
+        }
+        let migrated = LedgerScanner(timezone: timezone, cacheDirectory: warningIndex)
+        let migratedLogs = migrated.scan(root: warningRoot, now: midnight, days: nil).logs
+        expect(migrated.parsedFileCount == 1 && migrated.diskCacheHits == 1, "old warning entries are reparsed while clean cached logs remain reusable")
+        expect(migrated.snapshot(logs: migratedLogs, start: midnight, end: nextDay).isComplete && migrated.snapshot(logs: migratedLogs, start: .distantPast, end: nextDay).logIssues.count == 1, "cache migration restores dated completeness without hiding historical conflicts")
         try (modern + "{\"timestamp\":").write(to: partialFile, atomically: true, encoding: .utf8)
         let partial = try parser.parse(url: partialFile)
         expect(partial.samples.count == 2 && partial.malformed == 0, "trailing partial write is ignored until next scan")

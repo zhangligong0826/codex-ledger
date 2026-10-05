@@ -89,7 +89,8 @@ public sealed class LedgerScanner {
             var cwd=info?.WorkingDirectory??"";
             turns.Add(new(id,info?.SessionID??first.SessionID,title[..Math.Min(200,title.Length)],category,samples.Aggregate(new TokenUsage(),(a,s)=>a+s.Usage),first.Date,samples.Max(s=>s.Date),info?.Finished??false,samples.Count,samples.Count(s=>childIDs.Contains(s.ID)),cwd,resolver.Resolve(cwd),samples.ToArray(),artifacts));
         }
-        return new(turns.OrderByDescending(t=>t.Usage.Total).ThenBy(t=>t.ID,StringComparer.Ordinal).ToArray(),(warnings??[]).Concat(logs.SelectMany(l=>l.IntegrityWarnings)).Concat(logs.Any(l=>l.Malformed>0)?new[]{"部分完整日志行损坏，用量可能不完整。"}:Array.Empty<string>()).Distinct().ToArray(),logs.Count,logs.Sum(l=>l.Malformed)){CapturedAt=now};
+        var issues=logs.Select(l=>new LogIssue(l.Path,((l.IntegrityDates==null||l.IntegrityDates.Any(d=>d>=range.Start&&d<range.End))?l.IntegrityWarnings:Enumerable.Empty<string>()).Concat(l.Malformed>0?new[]{"部分完整日志行损坏，用量可能不完整。"}:Array.Empty<string>()).ToArray())).Where(i=>i.Messages.Count>0).OrderBy(i=>i.Path,StringComparer.Ordinal).ToArray();
+        return new(turns.OrderByDescending(t=>t.Usage.Total).ThenBy(t=>t.ID,StringComparer.Ordinal).ToArray(),(warnings??[]).Concat(issues.SelectMany(i=>i.Messages)).Concat(logs.Any(l=>l.Malformed>0)?new[]{"部分完整日志行损坏，用量可能不完整。"}:Array.Empty<string>()).Distinct().ToArray(),logs.Count,logs.Sum(l=>l.Malformed)){CapturedAt=now,LogIssues=issues,HasReadFailures=warnings?.Count>0};
     }
     public IReadOnlyList<DailyUsage> Daily(IReadOnlyList<LedgerTurn> month,DateTimeOffset now) {
         var start=DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now,Zone).Date).AddDays(-29);

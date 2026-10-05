@@ -19,6 +19,7 @@ try {
             Expect(snap.Turns.GroupBy(t=>t.Project.ID).Select(g=>g.Aggregate(new CostEstimate(),(a,t)=>a+t.Cost)).Aggregate(new CostEstimate(),(a,c)=>a+c)==snap.Cost,name+" projects");
             Expect(snap.Turns.GroupBy(t=>t.SessionID).Select(g=>g.Aggregate(new CostEstimate(),(a,t)=>a+t.Cost)).Aggregate(new CostEstimate(),(a,c)=>a+c)==snap.Cost,name+" chats");
         }
+        if(data.J("complete").ValueKind==JsonValueKind.False){var unaffected=scanner.Snapshot(logs,DateScope.Today,now.AddDays(1));var lifetime=scanner.Snapshot(logs,DateScope.All,now.AddDays(1));Expect(unaffected.IsComplete&&unaffected.LogIssues.Count==0,"historical conflicts exclude unrelated days");Expect(!lifetime.IsComplete&&lifetime.LogIssues.Count>0&&!lifetime.HasReadFailures,"historical accounting conflicts stay disclosed");}
         var month=scanner.Snapshot(logs,DateScope.Month,now);var days=scanner.Daily(month.Turns,now);
         Expect(days.Count==30&&days.Aggregate(new CostEstimate(),(a,day)=>a+day.Cost)==month.Cost,"daily/month equality");
         foreach(var turn in month.Turns)Expect(scanner.Daily([turn],now).Aggregate(new CostEstimate(),(a,day)=>a+day.Cost)==turn.Cost,"scoped daily equality");
