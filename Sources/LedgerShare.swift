@@ -1,5 +1,18 @@
 import Foundation
 
+struct ShareContext {
+    let kind: String
+    let entityID: String?
+    let query: String
+    let category: String?
+    let model: String?
+    let start: Date
+    let end: Date
+    let timezone: String
+    let coverage: AccountingCoverage
+    let capturedAt: Date
+    let completion: CompletionRecord?
+}
 // A value snapshot: renderers never read a live store or reprice aggregate tokens.
 struct ShareSnapshot {
     let kind: String
@@ -22,7 +35,11 @@ struct ShareSnapshot {
     var rangeStart: Date = Date()
     var rangeEnd: Date = Date()
     var heatmapMetric: String = "tokens"
+    var context: ShareContext?
     static let downloadURL = "https://zhangligong0826.github.io/codex-ledger/"
+    var primaryCost: CostEstimate { completionCost ?? cost }
+    var primaryUsage: TokenUsage { context?.completion?.usage ?? usage }
+    var primaryTurns: Int? { if let record = context?.completion { return record.legacy ? nil : record.turnIDs.count }; return turns }
     var monthlyUsage: TokenUsage { days.reduce(TokenUsage()) { $0 + $1.usage } }
     var monthlyCost: CostEstimate { days.reduce(CostEstimate()) { $0 + $1.cost } }
     var activeDays: Int { days.filter { $0.usage.total > 0 }.count }

@@ -189,6 +189,12 @@ enum LedgerAnalytics {
         }.sorted { $0.usage.total == $1.usage.total ? $0.id < $1.id : $0.usage.total > $1.usage.total }
         return result
     }
+    static func projects(_ tasks: [LedgerTask], titles: [String: String]) -> [ProjectUsage] {
+        Dictionary(grouping: tasks, by: \.projectID).map { id, turns in
+            let first = turns[0]
+            return ProjectUsage(identity: ProjectIdentity(id: id, name: first.projectName, path: first.projectPath), tasks: turns, conversations: conversations(turns, titles: titles))
+        }.sorted { $0.cost.totalUSD > $1.cost.totalUSD }
+    }
     static func conversations(_ tasks: [LedgerTask], titles: [String: String], projectSets: [String: Set<String>] = [:]) -> [ConversationUsage] {
         Dictionary(grouping: tasks, by: \.sessionID).map { id, turns in
             let chronological = turns.sorted { $0.date == $1.date ? $0.id < $1.id : $0.date < $1.date }

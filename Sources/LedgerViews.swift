@@ -9,13 +9,14 @@ struct UsageMetrics: View {
     var usage: TokenUsage
     var cost: CostEstimate? = nil
     var pending = false
+    var prominent = false
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 125), alignment: .leading)], alignment: .leading, spacing: 10) {
                 metric("输入", usage.input); metric("其中缓存", usage.cached)
                 metric("输出", usage.output); metric("其中推理", usage.reasoning)
             }
-            if let cost = cost { CostMetric(cost: cost, pending: pending) }
+            if let cost = cost { CostMetric(cost: cost, pending: pending, large: prominent) }
         }
     }
     func metric(_ label: String, _ value: Int64) -> some View {
@@ -27,11 +28,12 @@ struct UsageMetrics: View {
 struct CostMetric: View {
     var cost: CostEstimate
     var pending = false
+    var large = false
     @LedgerViewState private var showDetails = false
     var body: some View {
         HStack(spacing: 6) {
             Label(L("预估 API 花费"), systemImage: "dollarsign.circle").foregroundStyle(.secondary).lineLimit(1)
-            Text(pending ? "—" : LedgerPricing.display(cost)).fontWeight(.medium).monospacedDigit().fixedSize()
+            Text(pending ? "—" : LedgerPricing.display(cost)).font(.system(size: large ? 28 : 11, weight: .semibold, design: .rounded)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.55)
             Text("USD").foregroundStyle(.secondary).font(.system(size: 9))
             Spacer(minLength: 0)
             Button { showDetails.toggle() } label: { Image(systemName: "info.circle").foregroundStyle(.secondary) }
@@ -67,11 +69,12 @@ struct StatusPopover: View {
     @ObservedObject var store: LedgerStore
     var openDashboard: () -> Void
     @LedgerViewState private var showCostDetails = false
-    private var showTotals: Bool { store.rangeReady && !store.dataUnavailable }
+    @LedgerViewState private var ringMetric = "tokens"
+    private var showTotals: Bool { store.overviewReady && !store.dataUnavailable }
     private var tokenSummary: String {
         guard showTotals else { return "—" }
-        let tokens = compactTokens(store.snapshot.usage.total) + " tokens"
-        let turns = L("\(store.snapshot.tasks.count) 个任务")
+        let tokens = compactTokens(store.overviewSnapshot.usage.total) + " tokens"
+        let turns = L("\(store.overviewSnapshot.tasks.count) 个任务")
         return tokens + " · " + turns
     }
     var body: some View {
@@ -80,7 +83,7 @@ struct StatusPopover: View {
                 Text(L("用量总览")).font(.system(size: 14, weight: .semibold))
                     .help(L("本机 Codex 日志 · 输入 + 输出（包含缓存）"))
                 Spacer(minLength: 0)
-                Picker(L("时间"), selection: $store.scope) { ForEach(DateScope.allCases) { Text(L($0.rawValue)).tag($0) } }
+                Picker(L("时间"), selection: $store.overviewScope) { ForEach(DateScope.allCases) { Text(L($0.rawValue)).tag($0) } }
                     .pickerStyle(.menu).labelsHidden().controlSize(.small).frame(width: 108)
                 LedgerShareMenu(store: store, overview: true)
             }.padding(.horizontal, 12).padding(.top, 12).padding(.bottom, 8)
@@ -93,10 +96,10 @@ struct StatusPopover: View {
                                     Text(L("预估 API 花费")).font(.system(size: 9)).foregroundStyle(.secondary)
                                     Button { showCostDetails = true } label: { Image(systemName: "info.circle").font(.system(size: 9)).foregroundStyle(.secondary) }
                                         .buttonStyle(.plain).disabled(!showTotals).help(L("查看金额计算依据"))
-                                        .popover(isPresented: $showCostDetails) { CostDetails(cost: store.snapshot.cost).padding(16).frame(width: 310) }
+                                        .popover(isPresented: $showCostDetails) { CostDetails(cost: store.overviewSnapshot.cost).padding(16).frame(width: 310) }
                                 }
                                 HStack(alignment: .firstTextBaseline, spacing: 4) {
-                                    Text(showTotals ? LedgerPricing.display(store.snapshot.cost) : store.dataUnavailable ? "—" : "…")
+                                    Text(showTotals ? LedgerPricing.display(store.overviewSnapshot.cost) : store.dataUnavailable ? "—" : "…")
                                         .font(.system(size: 28, weight: .semibold, design: .rounded)).monospacedDigit()
                                         .lineLimit(1).minimumScaleFactor(0.6)
                                     Text("USD").font(.system(size: 9)).foregroundStyle(.secondary)
@@ -105,43 +108,52 @@ struct StatusPopover: View {
                                     .font(.system(size: 10)).foregroundStyle(.secondary)
                             }
                             Spacer(minLength: 0)
-                            UsageRing(totals: store.categoryTotals, total: store.snapshot.usage.total, pending: !showTotals, size: 48, showTotal: false,
-                                      scopeLabel: L(store.scope.rawValue), cost: store.snapshot.cost,
-                                      categoryCosts: Dictionary(grouping: store.snapshot.tasks, by: \.category).mapValues { LedgerPricing.total($0) })
+                            UsageRing(totals: LedgerAnalytics.categories(store.overviewSnapshot.tasks), total: store.overviewSnapshot.usage.total, pending: !showTotals, size: 48, showTotal: false,
+                                      scopeLabel: L(store.overviewScope.rawValue), cost: store.overviewSnapshot.cost,
+                                      categoryCosts: Dictionary(grouping: store.overviewSnapshot.tasks, by: \.category).mapValues { LedgerPricing.total($0) }, metric: ringMetric, selectCategory: { category in store.navigate(.tasks); store.categoryFilter = category; openDashboard() })
                         }
+                        Picker(L("圆盘"), selection: $ringMetric) { Text("token").tag("tokens"); Text(L("金额")).tag("cost") }.pickerStyle(.segmented).controlSize(.mini)
+                        if ringMetric == "cost" && store.overviewSnapshot.cost.unpricedTokens > 0 { Text(L("含未计价用量") + " · " + compactTokens(store.overviewSnapshot.cost.unpricedTokens) + " tokens").font(.system(size: 9)).foregroundStyle(.secondary) }
                         HStack {
-                            Text(showTotals ? L("输入") + " " + compactTokens(store.snapshot.usage.input) : "—")
+                            Text(showTotals ? L("输入") + " " + compactTokens(store.overviewSnapshot.usage.input) : "—")
                             Spacer()
-                            Text(showTotals ? L("输出") + " " + compactTokens(store.snapshot.usage.output) : "—")
+                            Text(showTotals ? L("输出") + " " + compactTokens(store.overviewSnapshot.usage.output) : "—")
                         }.font(.system(size: 10)).foregroundStyle(.secondary)
 
                     }.padding(10).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
-                    MonthlyActivityView(store: store)
+                    MonthlyActivityView(store: store, onDay: { day in store.showDay(day); openDashboard() })
+                    ForEach(store.goals.prefix(2)) { entry in
+                        Button { store.openGoal(entry.id); openDashboard() } label: {
+                            HStack { Text(entry.goal.name).font(.system(size: 11)).lineLimit(1); Spacer(); Text(LedgerPricing.display(entry.goal.completionCost ?? entry.lifetimeCost)).font(.system(size: 11, weight: .medium)) }
+                        }.buttonStyle(.plain)
+                    }
+                    Button { store.navigate(.goals); openDashboard() } label: { Label(L("打开工作账本"), systemImage: "arrow.up.right") }.font(.system(size: 11))
+                    DisclosureGroup(L("任务用途"), isExpanded: $store.categoriesExpanded) {
                     HStack {
                         Label(L("任务用途"), systemImage: "chart.bar.xaxis").font(.system(size: 11, weight: .semibold))
                         Spacer()
-                        Button(showTotals ? L("\(store.knownModelCount) 个模型") : "—") { store.navigate(.models); openDashboard() }.buttonStyle(.plain).font(.system(size: 10)).foregroundStyle(.secondary)
+                        Button(showTotals ? L("\(store.overviewSnapshot.modelUsage.filter { $0.model != "未知模型" }.count) 个模型") : "—") { store.navigate(.models); openDashboard() }.buttonStyle(.plain).font(.system(size: 10)).foregroundStyle(.secondary)
                     }
                     VStack(spacing: 8) {
-                        if !store.rangeReady {
+                        if !store.overviewReady {
                             HStack { ProgressView().controlSize(.small); Text(L("正在整理日志，请稍候")).font(.system(size: 11)) }.padding(.vertical, 10)
-                        } else if store.snapshot.tasks.isEmpty {
-                            Text(store.snapshot.hasReadFailures ? L("需要检查数据目录") : L("这个日期范围内暂无记录")).font(.system(size: 11)).foregroundStyle(.secondary).padding(.vertical, 10)
+                        } else if store.overviewSnapshot.tasks.isEmpty {
+                            Text(store.overviewSnapshot.hasReadFailures ? L("需要检查数据目录") : L("这个日期范围内暂无记录")).font(.system(size: 11)).foregroundStyle(.secondary).padding(.vertical, 10)
                         }
-                        ForEach(store.categoryTotals.prefix(3), id: \.0) { c, value, count in
+                        ForEach(LedgerAnalytics.categories(store.overviewSnapshot.tasks).prefix(3), id: \.0) { c, value, count in
                             Button { store.navigate(.tasks); store.categoryFilter = c; openDashboard() } label: {
                                 VStack(spacing: 4) {
                                     HStack {
                                         Text(L(c.title)).font(.system(size: 11, weight: .medium)).lineLimit(1)
                                         Spacer(minLength: 4)
                                         Text(compactTokens(value)).font(.system(size: 10)).foregroundStyle(.secondary).monospacedDigit()
-                                        Text(String(format: "%.1f%%", Double(value) / Double(max(1, store.snapshot.usage.total)) * 100)).font(.system(size: 9)).foregroundStyle(.secondary).frame(width: 38, alignment: .trailing)
+                                        Text(String(format: "%.1f%%", Double(value) / Double(max(1, store.overviewSnapshot.usage.total)) * 100)).font(.system(size: 9)).foregroundStyle(.secondary).frame(width: 38, alignment: .trailing)
                                         Image(systemName: "chevron.right").font(.system(size: 8)).foregroundStyle(.tertiary)
                                     }
                                     GeometryReader { geo in
                                         ZStack(alignment: .leading) {
                                             Capsule().fill(Color.primary.opacity(0.08))
-                                            Capsule().fill(c.color).frame(width: geo.size.width * CGFloat(value) / CGFloat(max(1, store.snapshot.usage.total)))
+                                            Capsule().fill(c.color).frame(width: geo.size.width * CGFloat(value) / CGFloat(max(1, store.overviewSnapshot.usage.total)))
                                         }
                                     }.frame(height: 3)
                                 }.contentShape(Rectangle())
@@ -151,13 +163,14 @@ struct StatusPopover: View {
                             HStack { Text(L("查看目标账本")); Spacer(); Image(systemName: "arrow.up.right") }.font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary)
                         }.buttonStyle(.plain)
                     }.padding(10).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
-                    if !store.snapshot.warnings.isEmpty {
+                    }.font(.system(size: 11))
+                    if !store.overviewSnapshot.warnings.isEmpty {
                         Button { store.navigate(.tasks); openDashboard() } label: {
-                            Label(L(store.snapshot.warningSummary), systemImage: "exclamationmark.circle").font(.system(size: 10)).foregroundStyle(.orange)
+                            Label(L(store.overviewSnapshot.warningSummary), systemImage: "exclamationmark.circle").font(.system(size: 10)).foregroundStyle(.orange)
                         }.buttonStyle(.plain)
                     }
                 }.padding(.horizontal, 12).padding(.bottom, 10)
-            }.id(store.scope)
+            }.id(store.overviewScope)
             if store.busy { HStack { ProgressView().controlSize(.mini); Text(store.scanStatus).font(.system(size: 10)).lineLimit(1); Spacer() }.padding(.horizontal, 14).padding(.bottom, 6) }
             Divider()
             HStack {
@@ -174,7 +187,7 @@ struct StatusPopover: View {
                     Button(L("对话")) { store.navigate(.conversations); openDashboard() }
                     Button(L("全部工作")) { store.navigate(.tasks); openDashboard() }
                     Button(L("查看模型用量")) { store.navigate(.models); openDashboard() }
-                    Button(L("导出 CSV…")) { store.exportCSV(models: false) }.disabled(store.busy || !store.rangeReady || store.dataUnavailable)
+                    Button(L("导出 CSV…")) { store.exportCSV(models: false) }.disabled(store.busy || !store.overviewReady || store.dataUnavailable)
                     Button(L("设置…")) { store.navigate(.settings); openDashboard() }
                     Picker(L("语言"), selection: Binding(get: { store.language }, set: store.setLanguage)) { Text("English").tag("en"); Text("简体中文").tag("zh") }
                     Picker(L("外观"), selection: Binding(get: { store.appearance }, set: store.setAppearance)) { Text(L("跟随系统")).tag("system"); Text(L("浅色")).tag("light"); Text(L("深色")).tag("dark") }
@@ -188,7 +201,10 @@ struct StatusPopover: View {
 
 struct MonthlyActivityView: View {
     @ObservedObject var store: LedgerStore
-    private var days: [DailyUsage] { store.activity.isEmpty ? LedgerDemo.activity(empty: true) : store.activity }
+    var scoped = false
+    var onDay: ((Date) -> Void)?
+    private var activity: [DailyUsage] { scoped ? store.contextActivity : store.activity }
+    private var days: [DailyUsage] { activity.isEmpty ? LedgerDemo.activity(empty: true) : activity }
     private var offset: Int { Calendar.current.component(.weekday, from: days[0].date) - 1 }
     private var columns: Int { (offset + days.count + 6) / 7 }
     private var failed: Bool { store.activityReady && store.activity.allSatisfy { $0.responses == 0 } && !store.snapshot.warnings.isEmpty }
@@ -220,9 +236,9 @@ struct MonthlyActivityView: View {
                                 let index = column * 7 + row - offset
                                 if days.indices.contains(index) {
                                     let day = days[index]
-                                    RoundedRectangle(cornerRadius: 2)
+                                    Button { if let onDay { onDay(day.date) } else { store.selectedDay = day.date } } label: { RoundedRectangle(cornerRadius: 2)
                                         .fill(color(pending || failed ? 0 : store.heatmapMetric == "cost" ? day.costIntensity(peak: peakCost) : day.intensity(peak: peak)))
-                                        .frame(width: 10, height: 10)
+                                        .frame(width: 10, height: 10).padding(2).contentShape(Rectangle()) }.buttonStyle(.plain)
                                         .help(tooltip(day)).accessibilityLabel(tooltip(day))
                                 } else { Color.clear.frame(width: 10, height: 10).accessibilityHidden(true) }
                             }
@@ -270,6 +286,7 @@ struct MonthlyActivityView: View {
 
 struct DashboardView: View {
     @ObservedObject var store: LedgerStore
+    @FocusState private var searchFocused: Bool
     var body: some View {
         HStack(spacing: 0) {
             sidebar.frame(width: 210); Divider()
@@ -291,7 +308,7 @@ struct DashboardView: View {
                     if store.selectedGoalID != nil || store.selectedProjectID != nil || store.selectedConversationID != nil {
                         HStack {
                             Button { store.back() } label: { Label(L("返回"), systemImage: "chevron.left") }
-                            Text(store.selectedGoalID != nil ? L("仅当前目标") : store.selectedProjectID != nil ? L("仅当前项目") : L("整个对话")).font(.system(size: 11)).foregroundStyle(.secondary)
+                            Text([store.selectedGoalID.flatMap { id in store.goalBook.goals.first { $0.id == id }?.name }, store.project?.name, store.conversation?.title].compactMap { $0 }.joined(separator: " › ") + " · " + (store.selectedGoalID != nil ? L("仅当前目标") : store.selectedProjectID != nil ? L("仅当前项目") : L("整个对话"))).font(.system(size: 11)).foregroundStyle(.secondary)
                             if store.conversation?.spansProjects == true { Label(L("涉及多个项目"), systemImage: "folder.badge.questionmark").font(.system(size: 11)).foregroundStyle(.secondary) }
                             Spacer()
                             if let chat = store.conversation {
@@ -302,13 +319,9 @@ struct DashboardView: View {
                     }
                     if let entry = store.goal { GoalDetailHeader(store: store, entry: entry) }
                     if store.page != .goals {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 145))], spacing: 10) {
-                        SummaryCard(title: L("总 token"), value: store.contextReady ? compactTokens(store.contextUsage.total) : store.rangeReady ? "—" : "…", subtitle: L("输入 + 输出 · 含缓存"), symbol: "chart.bar")
-                        SummaryCard(title: L("任务轮次"), value: store.contextReady ? "\(store.selectedTasks.count)" : store.rangeReady ? "—" : "…", subtitle: store.rangeReady ? L("\(store.selectedTasks.filter(\.finished).count) 轮已结束") : L("正在整理日志…"), symbol: "square.stack")
-                        SummaryCard(title: L("关联文件"), value: store.contextReady ? "\(Set(store.selectedTasks.flatMap(\.artifacts)).count)" : store.rangeReady ? "—" : "…", subtitle: L("已存在的本地文件"), symbol: "doc.on.doc")
-                        SummaryCard(title: L("使用模型"), value: store.contextReady ? "\(Set(store.selectedTasks.flatMap(\.models)).subtracting(["未知模型"]).count)" : store.rangeReady ? "—" : "…", subtitle: L("已识别的不同模型"), symbol: "cpu")
-                    }
-                    UsageMetrics(usage: store.contextUsage, cost: store.contextCost, pending: !store.contextReady)
+                    Text(compactTokens(store.contextUsage.total) + " tokens · " + String(store.selectedTasks.count) + " " + L("任务轮次") + " · " + String(Set(store.selectedTasks.flatMap(\.models)).subtracting(["未知模型"]).count) + " " + L("模型"))
+                        .font(.system(size: 12)).foregroundStyle(.secondary)
+                    UsageMetrics(usage: store.contextUsage, cost: store.contextCost, pending: !store.contextReady, prominent: true)
                     } else if store.selectedGoalID != nil {
                         Text(selectedRangeSummary).font(.system(size: 11)).foregroundStyle(.secondary)
                         UsageMetrics(usage: store.contextUsage, cost: store.contextCost, pending: !store.contextReady)
@@ -329,8 +342,15 @@ struct DashboardView: View {
                     HStack {
                         Text(listTitle).font(.system(size: 14, weight: .semibold)).lineLimit(1)
                         Spacer(minLength: 6)
-                        if !store.search.isEmpty || store.categoryFilter != nil || store.modelFilter != nil || store.unassignedOnly { Button(L("清除筛选")) { store.clearFilters() }.font(.system(size: 11)) }
-                        TextField(searchPrompt, text: $store.search).textFieldStyle(.roundedBorder).frame(maxWidth: 215)
+                        if !store.search.isEmpty || store.categoryFilter != nil || store.modelFilter != nil || store.unassignedOnly || store.selectedDay != nil { Button(L("清除筛选")) { store.clearFilters() }.font(.system(size: 11)) }
+                        Picker(L("排序"), selection: $store.sortOrder) { Text(L("金额")).tag("cost"); Text("token").tag("tokens"); Text(L("最近")).tag("recent") }.pickerStyle(.menu).frame(width: 120)
+                        TextField(searchPrompt, text: $store.search).focused($searchFocused).textFieldStyle(.roundedBorder).frame(maxWidth: 215)
+                    }
+                    if let day = store.selectedDay { Text(L("仅此日") + " " + day.formatted(.dateTime.year().month().day())).font(.caption) }
+                    if let category = store.categoryFilter { Text(L("任务用途") + ": " + L(category.title)).font(.caption) }
+                    if store.selectedGoalID != nil || store.selectedProjectID != nil || store.selectedConversationID != nil {
+                        DisclosureGroup(L("近 30 天")) { MonthlyActivityView(store: store, scoped: true) }
+                            .task(id: (store.selectedGoalID ?? "") + (store.selectedProjectID ?? "") + (store.selectedConversationID ?? "") + store.search + (store.categoryFilter?.rawValue ?? "") + (store.modelFilter ?? "") + String(store.snapshot.refreshedAt.timeIntervalSince1970)) { store.updateContextActivity() }
                     }
                     if store.selectedConversationID != nil { conversationSummary }
                     content.id((store.selectedGoalID ?? "") + store.page.rawValue + (store.selectedProjectID ?? "") + (store.selectedConversationID ?? "") + store.scope.rawValue).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -342,6 +362,11 @@ struct DashboardView: View {
                 }
             }.padding(20).frame(maxWidth: .infinity, maxHeight: .infinity)
         }.sheet(item: $store.goalEditor) { draft in GoalEditorView(store: store, draft: draft) }
+        .sheet(item: $store.assignmentDraft) { draft in AssignmentView(store: store, draft: draft) }
+        .background {
+            Button("") { searchFocused = true }.keyboardShortcut("f", modifiers: .command).hidden()
+            Button("") { store.back() }.keyboardShortcut("[", modifiers: .command).hidden()
+        }
         .id(store.language).background(Color(nsColor: .windowBackgroundColor))
             .alert("Codex Ledger", isPresented: Binding(get: { store.errorMessage != nil }, set: { if !$0 { store.errorMessage = nil } })) { Button(L("知道了")) { store.errorMessage = nil } } message: { Text(store.errorMessage ?? "") }
     }
@@ -416,14 +441,14 @@ struct DashboardView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     Button { store.openProject(project) } label: {
                       VStack(alignment: .leading, spacing: 10) {
-                        rowHeader(displayProject(project.name), "folder", project.usage.total)
+                        rowHeader(displayProject(project.name), "folder", project.usage.total, cost: project.cost)
                         Text(project.path.isEmpty ? L("缺少工作目录") : project.path).font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary).lineLimit(2).help(project.path)
                         Text(projectSubtitle(project)).font(.system(size: 11)).foregroundStyle(.secondary)
                       }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
                     }.buttonStyle(.plain)
-                    HStack { UsageMetrics(usage: project.usage, cost: project.cost); Spacer(); GoalAssignmentMenu(store: store, target: GoalTarget(kind: .project, id: project.id), suggestedName: displayProject(project.name)) }
+                    HStack { Text(compactTokens(project.usage.total) + " tokens").font(.caption).foregroundStyle(.secondary); Spacer(); GoalAssignmentMenu(store: store, target: GoalTarget(kind: .project, id: project.id), suggestedName: displayProject(project.name)) }
                 }.padding(15).frame(maxWidth: .infinity, alignment: .leading).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
-            } } } }
+            } }.scrollTargetLayout() }.scrollPosition(id: $store.scrollAnchor) }
         }
     }
     var conversationList: some View {
@@ -433,7 +458,7 @@ struct DashboardView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     Button { store.openConversation(chat) } label: {
                       VStack(alignment: .leading, spacing: 10) {
-                        rowHeader(displayTitle(chat.title), "bubble.left.and.bubble.right", chat.usage.total)
+                        rowHeader(displayTitle(chat.title), "bubble.left.and.bubble.right", chat.usage.total, cost: chat.cost)
                         HStack {
                             Text(conversationSubtitle(chat))
                             Spacer()
@@ -442,15 +467,15 @@ struct DashboardView: View {
                         Text(conversationPaths(chat)).font(.system(size: 10, design: .monospaced)).foregroundStyle(.secondary).lineLimit(2)
                       }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
                     }.buttonStyle(.plain)
-                    HStack { UsageMetrics(usage: chat.usage, cost: chat.cost); Spacer(); GoalAssignmentMenu(store: store, target: GoalTarget(kind: .conversation, id: chat.id), suggestedName: displayTitle(chat.title)) }
+                    HStack { Text(compactTokens(chat.usage.total) + " tokens").font(.caption).foregroundStyle(.secondary); Spacer(); GoalAssignmentMenu(store: store, target: GoalTarget(kind: .conversation, id: chat.id), suggestedName: displayTitle(chat.title)) }
                 }.padding(15).frame(maxWidth: .infinity, alignment: .leading).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
-            } } } }
+            } }.scrollTargetLayout() }.scrollPosition(id: $store.scrollAnchor) }
         }
     }
     var taskList: some View {
         Group {
             if store.filteredTasks.isEmpty { emptyState() }
-            else { ScrollView { LazyVStack(spacing: 8) { ForEach(store.filteredTasks) { task in TaskCard(task: task, store: store, expanded: store.selectedTaskID == task.id) } } }.id(store.selectedConversationID ?? "tasks") }
+            else { ScrollView { LazyVStack(spacing: 8) { ForEach(store.filteredTasks) { task in TaskCard(task: task, store: store, expanded: store.selectedTaskID == task.id) } }.scrollTargetLayout() }.scrollPosition(id: $store.scrollAnchor).id(store.selectedConversationID ?? "tasks") }
         }
     }
     var modelList: some View {
@@ -458,12 +483,12 @@ struct DashboardView: View {
             if store.filteredModels.isEmpty { emptyState() }
             else { ScrollView { LazyVStack(spacing: 10) { ForEach(store.filteredModels) { model in
                 VStack(alignment: .leading, spacing: 10) {
-                    rowHeader(L(model.model), "cpu", model.usage.total)
+                    rowHeader(L(model.model), "cpu", model.usage.total, cost: model.cost)
                     Text(L("\(model.taskIDs.count) 个任务 · \(model.responses) 次调用")).font(.system(size: 11)).foregroundStyle(.secondary)
                     UsageMetrics(usage: model.usage, cost: model.cost)
                     HStack { Spacer(); Button(L("查看相关任务")) { store.navigate(.tasks); store.modelFilter = model.model } }
                 }.padding(15).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
-            } } } }
+            } }.scrollTargetLayout() }.scrollPosition(id: $store.scrollAnchor) }
         }
     }
     @ViewBuilder var conversationSummary: some View {
@@ -494,11 +519,11 @@ struct DashboardView: View {
             }
         }.frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-    func rowHeader(_ title: String, _ symbol: String, _ total: Int64) -> some View {
+    func rowHeader(_ title: String, _ symbol: String, _ total: Int64, cost: CostEstimate? = nil) -> some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: symbol).foregroundStyle(.blue)
             Text(title).font(.system(size: 13, weight: .semibold)).lineLimit(2).frame(maxWidth: .infinity, alignment: .leading)
-            Text(compactTokens(total)).font(.system(size: 17, weight: .semibold, design: .rounded)).monospacedDigit().fixedSize()
+            Text(cost.map { LedgerPricing.display($0) + " USD" } ?? compactTokens(total)).font(.system(size: 17, weight: .semibold, design: .rounded)).monospacedDigit().fixedSize()
             Image(systemName: "chevron.right").font(.system(size: 9)).foregroundStyle(.tertiary).padding(.top, 5)
         }
     }

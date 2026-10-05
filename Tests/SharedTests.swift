@@ -3,13 +3,15 @@ extension CoreTests {
     static func sharedChecks(folder: URL) throws {
         let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Common/Fixtures")
         let fixtureRoot = fixtures.deletingLastPathComponent()
+        let v2 = try GoalArchive.decode(Data(contentsOf: fixtureRoot.appendingPathComponent("goal-v2-fixture.json")))
+        expect(v2.rules.count == 1 && v2.goals[0].completions[0].turnIDs == ["portable-chat:first"], "v2 portable rule and membership fixture")
         let archive = try GoalArchive.decode(Data(contentsOf: fixtureRoot.appendingPathComponent("goal-backup-fixture.json")))
         expect(archive.goals.first?.completionPriceDate == "2026-10-01" && archive.goals.first?.completionCost?.totalUSD == Decimal(string: "0.151456789") && archive.goals.first?.budgetUSD == Decimal(string: "10.25"), "portable backup preserves exact Decimal, budget and frozen price date")
         if let path = ProcessInfo.processInfo.environment["CODEX_LEDGER_INTEROP_INPUT"] {
             let external = try GoalArchive.decode(Data(contentsOf: URL(fileURLWithPath: path)))
-            expect(external.goals.first?.completionCost == archive.goals.first?.completionCost && external.goals.first?.budgetUSD == archive.goals.first?.budgetUSD, "C# -> Swift precise backup accepted")
+            expect(external.goals.first?.completionCost == archive.goals.first?.completionCost && external.goals.first?.budgetUSD == archive.goals.first?.budgetUSD && external.rules.map(\.id) == v2.rules.map(\.id) && external.goals[0].completions.map(\.cost) == v2.goals[0].completions.map(\.cost) && external.goals[0].completions[0].turnIDs == v2.goals[0].completions[0].turnIDs && abs(external.rules[0].start!.timeIntervalSince(v2.rules[0].start!)) < 0.000001, "C# -> Swift precise backup accepted")
         }
-        if let path = ProcessInfo.processInfo.environment["CODEX_LEDGER_SWIFT_BACKUP_OUTPUT"] { try GoalArchive.encode(archive).write(to: URL(fileURLWithPath: path)) }
+        if let path = ProcessInfo.processInfo.environment["CODEX_LEDGER_SWIFT_BACKUP_OUTPUT"] { try GoalArchive.encode(v2).write(to: URL(fileURLWithPath: path)) }
         let roundtrip = try GoalArchive.decode(GoalArchive.encode(archive))
         expect(roundtrip.bindings == archive.bindings && roundtrip.goals.first?.completionCost == archive.goals.first?.completionCost, "portable backup roundtrip")
         try GoalArchive.encode(archive).write(to: folder.appendingPathComponent("swift-goal-backup.json"))

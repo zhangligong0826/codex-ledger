@@ -1,5 +1,5 @@
 'use strict';
-const version='1.2.0-beta.3';
+const version='1.2.0-beta.4';
 const base=`https://github.com/zhangligong0826/codex-ledger/releases/download/v${version}/`;
 const links={'mac-download':`Codex-Ledger-${version}-macOS-universal.dmg`,'win-x64':`Codex-Ledger-${version}-Windows-win-x64-Setup.exe`,'win-arm64':`Codex-Ledger-${version}-Windows-win-arm64-Setup.exe`,'portable-x64':`Codex-Ledger-${version}-Windows-win-x64-Portable.zip`,'portable-arm64':`Codex-Ledger-${version}-Windows-win-arm64-Portable.zip`};
 for(const [id,file] of Object.entries(links))document.getElementById(id).href=base+file;

@@ -1,15 +1,16 @@
-Codex Ledger 1.2.0-beta.3 improves the reliability of local goal-cost accounting on macOS and Windows.
+Codex Ledger 1.2.0-beta.4 (build 16) centers the ledger on the cost of completing an outcome.
 
-- Mixed-format log reconciliation and explicit incomplete-record warnings; incomplete sources cannot freeze a goal completion amount.
-- Consistent project/conversation/model search scope across summaries, CSV and share cards. Captured date ranges, timezone and historical completion price dates are retained.
-- Optional USD goal budgets, cost/token heatmap intensity and prominent frozen completion amounts.
-- Validated goal-book backup/import with recovery copies and exact-decimal portable archives.
-- Windows repeated launch opens the existing instance. Genuine Beta.2 upgrade tests preserve preferences, assignments and frozen completion costs.
+- Connected goal creation, work selection and attribution preview. Selected historical work is fixed to explicit turns; dated and ongoing project/chat rules remain available. Preview shows the actual transferred turns, cost and displaced goals; attribution changes can be undone.
+- Scoped accounting coverage separates loading, record problems and unknown pricing. Related or unscoped errors prevent a new completion snapshot; unknown prices retain unpriced usage without pretending it costs zero.
+- Version 2 goal books preserve immutable completion history, membership, exact Decimal amounts, record coverage and price catalog identity. New ongoing rules stop accepting newly started work at completion. Reopening preserves history and does not silently resume rules. Legacy rules keep their original behavior.
+- Independent menu-bar/dashboard dates, restored navigation/search/filter/sort/scroll state, daily heatmap filtering and aligned CSV/share contexts. Completed goals emphasize frozen cost while selected-date and post-completion response usage remain separate.
+- Compact 300-point Mac overview and bounded detail windows, interactive token/cost ring and heatmap, standard editing/navigation shortcuts, bilingual appearance support and visible sharing scope. Share the last published snapshot during refresh; CSV does not wait for the heatmap.
+- Raw v1 recovery copies and separate atomic v2 storage. Cross-platform portable backups use exact decimal strings. Unknown or damaged books are retained and writes stop.
 
 Download: https://zhangligong0826.github.io/codex-ledger/
 
 Mac: universal DMG/ZIP or `brew install --cask zhangligong0826/tap/codex-ledger`. Windows 11: self-contained x64/ARM64 installers and portable ZIPs.
 
-API cost estimates are not subscription bills. Data and share rendering stay local. This free beta is ad-hoc signed on macOS and unsigned on Windows, without Apple notarization; follow system first-launch confirmations. Do not disable system security protections.
+API cost estimates are not subscription bills. Logs, bookkeeping and card rendering stay local. This free beta is ad-hoc signed on macOS and unsigned on Windows, without Apple notarization; follow system first-launch confirmations. Do not disable system security protections.
 
-Verification details are in QA.md. Windows runtime/UI/install checks use hosted x64 CI; ARM64 is cross-built, without native ARM64 execution. Physical Windows device acceptance and installed Mac share-dialog interaction remain unverified. All six binary SHA-256 values are in CHECKSUMS.txt.
+Verification evidence is recorded in QA.md. Windows runtime/UI/install/upgrade checks run on hosted x64 CI; ARM64 is built and architecture checked, without native ARM64 execution. Physical Windows devices, monitor placement and login/reboot checks remain outside acceptance. All six binary hashes are listed in CHECKSUMS.txt. Older releases remain unchanged.

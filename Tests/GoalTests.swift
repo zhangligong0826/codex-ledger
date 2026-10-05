@@ -34,7 +34,7 @@ import Foundation
         expect(csv.contains("'="), "user-defined goal names are CSV formula escaped")
         expect(csv.contains("\"\"paper\"\"\nreport"), "CSV protects quoted and multiline goal names")
         expect(csv.contains(String(summaries.first { $0.id == second.id }!.lifetimeUsage.total)), "CSV uses the same lifetime totals as UI")
-        var invalid = book; invalid.version = 2
+        var invalid = book; invalid.version = 3
         do { _ = try GoalBook.decode(JSONEncoder().encode(invalid)); preconditionFailure("future schema accepted") } catch { checks += 1 }
         var duplicate = book; duplicate.goals.append(first)
         do { _ = try GoalBook.decode(JSONEncoder().encode(duplicate)); preconditionFailure("duplicate goal accepted") } catch { checks += 1 }
@@ -43,14 +43,18 @@ import Foundation
         expect(current.usage.total == lifetime.tasks.filter { $0.id.hasPrefix("demo-turn-") }.reduce(TokenUsage()) { $0 + $1.usage }.total, "source usage remains intact")
 
         // Store tests isolate all writes in the demo preferences, never user data.
-        let defaults = LedgerPreferences.defaults, key = "goalBook.v1:/Users/demo/.codex", previous = defaults.data(forKey: key)
-        defaults.removeObject(forKey: key)
+        let defaults = LedgerPreferences.defaults, key = "goalBook.v2:/Users/demo/.codex", previous = defaults.data(forKey: key)
+        defaults.removeObject(forKey: "goalBook.v1:/Users/demo/.codex"); defaults.removeObject(forKey: key)
         defer { if let previous { defaults.set(previous, forKey: key) } else { defaults.removeObject(forKey: key) } }
+        defaults.removeObject(forKey: "dashboardDateScope"); defaults.removeObject(forKey: "overviewDateScope")
         let store = LedgerStore(); store.loadDemo(); store.language = "en"; LedgerText.language = "en"
         store.newGoal(name: "Build Codex Ledger", target: chat)
         store.saveGoal(name: "Build Codex Ledger", draft: store.goalEditor!)
         let goalID = store.selectedGoalID!
-        expect(store.scope == .history && store.goal != nil, "new goal opens its full lifetime, not just today")
+        expect(store.assignmentDraft != nil && store.goal!.lifetimeTasks.isEmpty, "new goal requires attribution preview before saving work")
+        store.assignGoal(chat, to: goalID)
+        store.assignmentDraft = nil
+        expect(store.scope == .today && store.goal != nil, "new goal retains selected date and shows full lifetime")
         let allTokens = store.goal!.lifetimeUsage.total, allCost = store.goal!.lifetimeCost
         store.scope = .today
         expect(store.goal!.lifetimeUsage.total == allTokens && store.goal!.usage.total < allTokens, "date changes keep goal lifetime constant")
@@ -84,17 +88,17 @@ import Foundation
         expect(store.goalBook.goals.first?.name == "Renamed outcome" && store.goalBook.goals.first?.completionCost == allCost, "rename preserves ownership and completion cost")
         store.openGoal(goalID); store.completeGoal(goalID)
         expect(store.goal!.goal.completedAt == nil && store.goal!.goal.completionCost == nil, "reopen clears completion baseline")
-        store.snapshot = LedgerSnapshot(warnings: ["Unreadable source"]); store.activity = []
+        store.snapshot = LedgerSnapshot(warnings: ["Unreadable source"]); store.lifetime = store.snapshot; store.activity = []
         store.completeGoal(goalID)
         expect(store.goal!.goal.completedAt == nil, "unreadable usage cannot be recorded as a zero-cost completion")
         store.loadDemo()
         store.deleteGoal(goalID)
-        expect(store.goalBook.goals.isEmpty && store.selectedGoalID == nil && store.snapshot.usage.total == lifetime.usage.total, "delete preserves all usage and exits deleted goal")
+        expect(store.goalBook.goals.isEmpty && store.selectedGoalID == nil && store.lifetime.usage == lifetime.usage, "delete preserves all usage and exits deleted goal")
         defaults.set(Data("invalid".utf8), forKey: key)
         let corrupt = LedgerStore(); corrupt.newGoal(name: "Must not overwrite")
         expect(corrupt.goalEditor == nil && defaults.data(forKey: key) == Data("invalid".utf8), "unreadable goal storage is preserved, never silently overwritten")
         store.loadDemo(); store.goalBook = restored; store.lifetime.warnings = ["Unreadable synthetic source"]
-        expect(!store.goalAmountsReady, "partial reads cannot freeze completion money")
+        expect(!store.canCompleteGoal(first.id), "partial reads cannot freeze completion money")
         let previousCompletion = store.goalBook.goals.first?.completedAt
         store.completeGoal(first.id)
         expect(store.goalBook.goals.first?.completedAt == previousCompletion, "completion is unchanged when records are incomplete")

@@ -62,7 +62,7 @@ import Foundation
         precondition(store.computationCount == forced + 1, "manual refresh always rechecks optional metadata and artifacts")
         try (recentData + appended + "bad complete line\n").write(to: recent, atomically: true, encoding: .utf8)
         store.refresh(force: false); try await settle(store)
-        precondition(!store.goalAmountsReady && !store.lifetime.isComplete && store.lifetime.usage.total == 242, "corrupt source warnings survive cache use and block finalizing a goal")
+        precondition(!store.canCompleteGoal(store.goalBook.goals.first!.id) && !store.lifetime.isComplete && store.lifetime.usage.total == 242, "corrupt source warnings survive cache use and block finalizing a goal")
         print("10/10 staged startup, unchanged refresh, cached scopes and goal invalidation checks passed")
     }
 }

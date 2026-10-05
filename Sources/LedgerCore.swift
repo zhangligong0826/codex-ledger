@@ -200,6 +200,9 @@ struct LedgerTask: Identifiable {
     var projectPath = ""
     var lastActivity = Date.distantPast
     var modelUsage: [ModelUsage] = []
+    var startedAt: Date?
+    var samples: [UsageSample] = []
+    var attributionStart: Date { startedAt ?? date }
     var cost: CostEstimate {
         modelUsage.isEmpty ? CostEstimate(unpricedTokens: usage.total) : modelUsage.reduce(CostEstimate()) { $0 + $1.cost }
     }
@@ -208,7 +211,27 @@ struct LedgerTask: Identifiable {
 struct LogIssue: Identifiable {
     let path: String
     let messages: [String]
+    var kind: String = "integrity"
+    var dates: [Date] = []
+    var affectedTurnIDs: Set<String> = []
+    var unknownScope = true
     var id: String { path }
+}
+
+struct AccountingCoverage: Codable, Equatable {
+    enum Status: String, Codable { case loading, complete, partial, failed }
+    var status: Status
+    var reasons: [String] = []
+    var canComplete: Bool { status == .complete }
+    static func evaluate(_ snapshot: LedgerSnapshot, turnIDs: Set<String>? = nil, loaded: Bool = true, interval: DateInterval? = nil) -> Self {
+        guard loaded else { return Self(status: .loading) }
+        let relevant = snapshot.logIssues.filter { issue in issue.unknownScope || ((interval == nil || issue.dates.isEmpty || issue.dates.contains { $0 >= interval!.start && $0 < interval!.end }) && (turnIDs == nil || !issue.affectedTurnIDs.isDisjoint(with: turnIDs!))) }
+        let represented = Set(snapshot.logIssues.flatMap(\.messages))
+        let unknown = snapshot.warnings.filter { !represented.contains($0) }
+        let reasons = Array(Set(relevant.flatMap(\.messages) + unknown)).sorted()
+        if reasons.isEmpty && snapshot.malformed == 0 { return Self(status: .complete) }
+        return Self(status: snapshot.hasReadFailures && snapshot.tasks.isEmpty ? .failed : .partial, reasons: reasons)
+    }
 }
 
 struct LedgerSnapshot {
@@ -649,10 +672,13 @@ final class LedgerScanner: @unchecked Sendable {
         // Only dated accounting conflicts in the selected range affect its
         // completeness. Read failures/corrupt lines have unknown coverage and
         // must remain conservative across all ranges.
+        let canonicalOwners = attributionKeys(logs: logs)
         let issues = logs.compactMap { log -> LogIssue? in
             let relevant = log.integrityDates.map { dates in dates.contains { $0 >= start && $0 < end } } ?? true
             let messages = (relevant ? log.integrityWarnings : []) + (log.malformed > 0 ? ["部分完整日志行损坏，用量可能不完整。"] : [])
-            return messages.isEmpty ? nil : LogIssue(path: log.path, messages: messages)
+            let dates = log.integrityDates ?? []
+            let ids = Set(log.samples.filter { dates.contains($0.date) }.map { canonicalOwners[$0.sessionID + ":" + $0.turnID] ?? $0.sessionID + ":" + $0.turnID })
+            return messages.isEmpty ? nil : LogIssue(path: log.path, messages: messages, kind: log.malformed > 0 ? "corrupt" : "integrity", dates: dates, affectedTurnIDs: ids, unknownScope: log.malformed > 0 || ids.isEmpty)
         }.sorted { $0.path < $1.path }
         let parseWarnings = issues.flatMap(\.messages)
         let malformed = logs.reduce(0) { $0 + $1.malformed }
@@ -687,6 +713,8 @@ final class LedgerScanner: @unchecked Sendable {
             let override = overrides[key].flatMap(WorkCategory.init(rawValue:))
             let title = info?.prompt.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             var task = LedgerTask(id: key, sessionID: info?.sessionID ?? first.sessionID, title: title.isEmpty ? (auto.0 == .background ? "Codex 后台检查" : "未记录用户请求") : String(title.prefix(200)), category: override ?? auto.0, reason: override == nil ? auto.1 : "你手动设置的分类", usage: samples.reduce(TokenUsage()) { $0 + $1.usage }, date: first.date, models: Array(Set(samples.map(\.model))).sorted(), artifacts: artifacts, finished: info?.finished ?? false, responses: samples.count, subagentResponses: samples.filter { subagentIDs.contains($0.id) }.count, workingDirectory: info?.workingDirectory ?? "", lastActivity: samples.map(\.date).max() ?? first.date)
+            task.startedAt = info?.start ?? first.date
+            task.samples = samples
             task.modelUsage = Dictionary(grouping: samples, by: \.model).map { name, calls in
                 ModelUsage(model: name, usage: calls.reduce(TokenUsage()) { $0 + $1.usage }, responses: calls.count, taskIDs: [key], cost: calls.reduce(CostEstimate()) { $0 + $1.cost })
             }.sorted { $0.usage.total > $1.usage.total }

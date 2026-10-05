@@ -87,9 +87,13 @@ public sealed class LedgerScanner {
             var category=Classifier.Category(info?.Prompt??"",artifacts,info?.InheritedCategory??"unknown",internals.Contains(info?.SessionID??first.SessionID));if(overrides!=null&&overrides.TryGetValue(id,out var manual))category=manual;
             var title=info?.Prompt.Trim()??"";if(title.Length==0)title=category=="background"?"Codex 后台检查":"未记录用户请求";
             var cwd=info?.WorkingDirectory??"";
-            turns.Add(new(id,info?.SessionID??first.SessionID,title[..Math.Min(200,title.Length)],category,samples.Aggregate(new TokenUsage(),(a,s)=>a+s.Usage),first.Date,samples.Max(s=>s.Date),info?.Finished??false,samples.Count,samples.Count(s=>childIDs.Contains(s.ID)),cwd,resolver.Resolve(cwd),samples.ToArray(),artifacts));
+            turns.Add(new(id,info?.SessionID??first.SessionID,title[..Math.Min(200,title.Length)],category,samples.Aggregate(new TokenUsage(),(a,s)=>a+s.Usage),first.Date,samples.Max(s=>s.Date),info?.Finished??false,samples.Count,samples.Count(s=>childIDs.Contains(s.ID)),cwd,resolver.Resolve(cwd),samples.ToArray(),artifacts){StartedAt=info?.Start??first.Date});
         }
-        var issues=logs.Select(l=>new LogIssue(l.Path,((l.IntegrityDates==null||l.IntegrityDates.Any(d=>d>=range.Start&&d<range.End))?l.IntegrityWarnings:Enumerable.Empty<string>()).Concat(l.Malformed>0?new[]{"部分完整日志行损坏，用量可能不完整。"}:Array.Empty<string>()).ToArray())).Where(i=>i.Messages.Count>0).OrderBy(i=>i.Path,StringComparer.Ordinal).ToArray();
+        var issues=logs.Select(l=>new LogIssue(l.Path,((l.IntegrityDates==null||l.IntegrityDates.Any(d=>d>=range.Start&&d<range.End))?l.IntegrityWarnings:Enumerable.Empty<string>()).Concat(l.Malformed>0?new[]{"部分完整日志行损坏，用量可能不完整。"}:Array.Empty<string>()).ToArray()) {
+            Kind=l.Malformed>0?"corrupt":"integrity", Dates=l.IntegrityDates??[],
+            AffectedTurnIDs=l.Samples.Where(s=>l.IntegrityDates?.Contains(s.Date)==true).Select(s=>internals.Contains(s.SessionID)&&roots.TryGetValue(s.RootTurnID,out var owner)?owner:s.SessionID+":"+s.TurnID).ToHashSet(),
+            UnknownScope=l.Malformed>0||!l.Samples.Any(s=>l.IntegrityDates?.Contains(s.Date)==true)
+        }).Where(i=>i.Messages.Count>0).OrderBy(i=>i.Path,StringComparer.Ordinal).ToArray();
         return new(turns.OrderByDescending(t=>t.Usage.Total).ThenBy(t=>t.ID,StringComparer.Ordinal).ToArray(),(warnings??[]).Concat(issues.SelectMany(i=>i.Messages)).Concat(logs.Any(l=>l.Malformed>0)?new[]{"部分完整日志行损坏，用量可能不完整。"}:Array.Empty<string>()).Distinct().ToArray(),logs.Count,logs.Sum(l=>l.Malformed)){CapturedAt=now,LogIssues=issues,HasReadFailures=warnings?.Count>0};
     }
     public IReadOnlyList<DailyUsage> Daily(IReadOnlyList<LedgerTurn> month,DateTimeOffset now) {

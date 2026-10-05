@@ -1,0 +1,82 @@
+{
+  "format": "codex-ledger-goals",
+  "version": 2,
+  "exportedAt": "2026-10-05T01:00:00.123Z",
+  "book": {
+    "version": 2,
+    "goals": [
+      {
+        "id": "portable-goal",
+        "name": "Portable synthetic goal",
+        "createdAt": "2026-10-04T10:00:00.000Z",
+        "completedAt": "2026-10-04T12:00:00.000Z",
+        "budgetUSD": 10.25,
+        "completionCost": {
+          "inputUSD": 0.123456789,
+          "cachedUSD": 0.025,
+          "outputUSD": 0.003,
+          "pricedTokens": 100,
+          "unpricedTokens": 0,
+          "unverifiedContextTokens": 0
+        },
+        "completionUsage": {
+          "input": 90,
+          "cached": 10,
+          "output": 10,
+          "reasoning": 2
+        },
+        "completionPriceDate": "2026-10-01",
+        "completions": [
+          {
+            "id": "portable-completion",
+            "completedAt": "2026-10-04T12:00:00.000Z",
+            "capturedAt": "2026-10-04T11:59:59.123Z",
+            "turnIDs": [
+              "portable-chat:first"
+            ],
+            "usage": {
+              "input": 90,
+              "cached": 10,
+              "output": 10,
+              "reasoning": 2
+            },
+            "cost": {
+              "inputUSD": "0.123456789",
+              "cachedUSD": "0.025",
+              "outputUSD": "0.003",
+              "pricedTokens": 100,
+              "unpricedTokens": 0,
+              "unverifiedContextTokens": 0
+            },
+            "coverage": {
+              "status": "complete",
+              "reasons": []
+            },
+            "priceVersion": "2026-10-01",
+            "legacy": false
+          }
+        ]
+      }
+    ],
+    "bindings": {
+      "conversation:portable-chat": "portable-goal",
+      "turn:portable-excluded": "__unassigned__"
+    },
+    "rules": [
+      {
+        "id": "portable-rule",
+        "target": {
+          "kind": "conversation",
+          "id": "portable-chat"
+        },
+        "goalID": "portable-goal",
+        "mode": "fromDate",
+        "turnIDs": [],
+        "start": "2026-10-04T10:00:00.123Z",
+        "end": "2026-10-04T12:00:00.000Z",
+        "savedAt": "2026-10-04T10:01:00.123Z",
+        "legacy": false
+      }
+    ]
+  }
+}

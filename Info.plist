@@ -15,7 +15,7 @@
 	<key>CFBundleShortVersionString</key>
 	<string>1.2.0</string>
 	<key>CFBundleVersion</key>
-	<string>15</string>
+	<string>16</string>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 	<key>LSUIElement</key>
@@ -27,6 +27,6 @@
 	<key>NSHumanReadableCopyright</key>
 	<string>Codex Ledger — local usage journal</string>
 	<key>LedgerReleaseVersion</key>
-	<string>1.2.0-beta.3</string>
+	<string>1.2.0-beta.4</string>
 </dict>
 </plist>

@@ -92,6 +92,14 @@ struct UsageRing: View {
     var scopeLabel = ""
     var cost: CostEstimate? = nil
     var categoryCosts: [WorkCategory: CostEstimate] = [:]
+    var metric = "tokens"
+    var selectCategory: ((WorkCategory) -> Void)?
+    private var weights: [Int64] {
+        guard metric == "cost" else { return totals.map(\.1) }
+        let total = categoryCosts.values.reduce(Decimal(0)) { $0 + $1.totalUSD }
+        return totals.map { total > 0 ? NSDecimalNumber(decimal: (categoryCosts[$0.0]?.totalUSD ?? 0) / total * 1_000_000_000).int64Value : 0 }
+    }
+    private var weightTotal: Int64 { weights.reduce(0, +) }
     @RingViewState private var hoveredCategory: WorkCategory?
     private var hoverDetails: String {
         guard !pending else { return L("正在汇总用量…") }
@@ -100,7 +108,8 @@ struct UsageRing: View {
             lines.append(L(category.title))
             if let value = categoryCosts[category] { lines.append(L("预估 API 花费") + " · " + LedgerPricing.display(value) + " USD") }
             lines.append(exactTokens(entry.1) + " tokens · " + L("\(entry.2) 个任务"))
-            lines.append(L("占 token 比例") + " · " + String(format: "%.1f%%", Double(entry.1) / Double(max(1, total)) * 100))
+            let fraction = metric == "cost" ? Double(weights[totals.firstIndex(where: { $0.0 == category })!]) / Double(max(1, weightTotal)) : Double(entry.1) / Double(max(1, total))
+            lines.append(L(metric == "cost" ? "占已计价金额比例" : "占 token 比例") + " · " + String(format: "%.1f%%", fraction * 100))
         } else {
             if let cost { lines.append(L("预估 API 花费") + " · " + LedgerPricing.display(cost) + " USD") }
             lines.append(L("总 token") + " · " + exactTokens(total))
@@ -113,8 +122,8 @@ struct UsageRing: View {
         ZStack {
             Circle().stroke(Color.primary.opacity(0.06), lineWidth: 12)
             ForEach(Array(totals.enumerated()), id: \.element.0) { index, entry in
-                let start = Double(totals.prefix(index).reduce(Int64(0)) { $0 + $1.1 }) / Double(max(1, total))
-                let end = start + Double(entry.1) / Double(max(1, total))
+                let start = Double(weights.prefix(index).reduce(0, +)) / Double(max(1, weightTotal))
+                let end = start + Double(weights[index]) / Double(max(1, weightTotal))
                 Circle().trim(from: start + min(0.003, (end - start) / 4), to: end - min(0.003, (end - start) / 4))
                     .stroke(entry.0.color, style: StrokeStyle(lineWidth: 12, lineCap: .butt)).rotationEffect(.degrees(-90))
             }
@@ -127,11 +136,14 @@ struct UsageRing: View {
             .onContinuousHover { phase in
                 let next: WorkCategory?
                 if !pending, case .active(let point) = phase,
-                   let index = UsageRingHitTest.categoryIndex(x: point.x, y: point.y, diameter: size, weights: totals.map(\.1), total: total) {
+                   let index = UsageRingHitTest.categoryIndex(x: point.x, y: point.y, diameter: size, weights: weights, total: weightTotal) {
                     next = totals[index].0
                 } else { next = nil }
                 if next != hoveredCategory { hoveredCategory = next }
             }
+            .onTapGesture { if let category = hoveredCategory { selectCategory?(category) } }
+            .contextMenu { ForEach(totals, id: \.0) { entry in Button(L(entry.0.title)) { selectCategory?(entry.0) } } }
+            .accessibilityAction(named: Text(L("查看相关任务"))) { if let category = totals.first?.0 { selectCategory?(category) } }
             .help(hoverDetails)
             .accessibilityLabel(pending ? L("正在汇总用量…") : L("总用量 \(exactTokens(total)) token"))
     }
@@ -223,7 +235,15 @@ final class UsagePanel: NSPanel {
         panelItem.target = self; appMenu.addItem(panelItem); appMenu.addItem(.separator())
         let quitItem = NSMenuItem(title: L("退出 Codex Ledger"), action: #selector(quitAction), keyEquivalent: "q")
         quitItem.target = self; appMenu.addItem(quitItem)
-        appItem.submenu = appMenu; mainMenu.addItem(appItem); NSApp.mainMenu = mainMenu
+        appItem.submenu = appMenu; mainMenu.addItem(appItem)
+        let editItem = NSMenuItem(title: L("编辑"), action: nil, keyEquivalent: ""), edit = NSMenu(title: L("编辑"))
+        for (title, selector, key) in [("撤销", Selector(("undo:")), "z"), ("剪切", Selector(("cut:")), "x"), ("复制", Selector(("copy:")), "c"), ("粘贴", Selector(("paste:")), "v"), ("全选", Selector(("selectAll:")), "a")] {
+            let item = NSMenuItem(title: L(title), action: selector, keyEquivalent: key); edit.addItem(item)
+        }
+        editItem.submenu = edit; mainMenu.addItem(editItem)
+        let newItem = NSMenuItem(title: L("新建目标"), action: #selector(newGoalAction), keyEquivalent: "n"); newItem.target = self; appMenu.insertItem(newItem, at: 1)
+        let preferences = NSMenuItem(title: L("设置…"), action: #selector(settingsAction), keyEquivalent: ","); preferences.target = self; appMenu.insertItem(preferences, at: 2)
+        NSApp.mainMenu = mainMenu
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem.button {
             button.image = menuBarIcon()
@@ -296,7 +316,7 @@ final class UsagePanel: NSPanel {
         let screen = button.window?.screen ?? NSScreen.main
         let visible = screen?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
         let anchor = button.window?.convertToScreen(button.convert(button.bounds, to: nil)) ?? NSRect(x: visible.maxX - 20, y: visible.maxY, width: 20, height: 24)
-        let height = min(store.panelHeight, visible.height - 16)
+        let height = min(store.panelHeight, visible.height * 0.75)
         let width = min(LedgerStore.panelWidth, visible.width - 16)
         panel.setContentSize(NSSize(width: width, height: height))
         panel.setFrameOrigin(NSPoint(x: max(visible.minX + 8, min(anchor.maxX - width, visible.maxX - width - 8)), y: max(visible.minY + 8, min(anchor.minY - height - 8, visible.maxY - height - 8))))
@@ -307,19 +327,19 @@ final class UsagePanel: NSPanel {
     func openShare(_ preview: SharePreview) {
         usagePanel?.orderOut(nil)
         shareWindow?.close()
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 430, height: 610), styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 430, height: min(720, (NSScreen.main?.visibleFrame.height ?? 800) - 80)), styleMask: [.titled, .closable], backing: .buffered, defer: false)
         window.title = L("分享"); window.isReleasedWhenClosed = false
-        window.contentViewController = NSHostingController(rootView: SharePreviewView(preview: preview, language: store.language, close: { [weak window] in window?.close() }))
+        let host = NSHostingController(rootView: SharePreviewView(preview: preview, language: store.language, close: { [weak window] in window?.close() })); host.sizingOptions = []; window.contentViewController = host
         shareWindow = window; window.center(); NSApp.activate(ignoringOtherApps: true); window.makeKeyAndOrderFront(nil)
     }
     func openDashboard() {
         usagePanel?.orderOut(nil)
         if dashboard == nil {
             let visible = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
-            let initial = NSSize(width: min(1080, visible.width - 32), height: min(720, visible.height - 64))
+            let initial = NSSize(width: min(980, visible.width - 32), height: min(700, visible.height - 64))
             let window = NSWindow(contentRect: NSRect(origin: .zero, size: initial), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
-            window.title = L("Codex Ledger · 工作账本"); window.contentMinSize = NSSize(width: min(880, initial.width), height: min(580, initial.height))
-            window.contentViewController = NSHostingController(rootView: DashboardView(store: store))
+            window.title = L("Codex Ledger · 工作账本"); window.contentMinSize = NSSize(width: min(760, initial.width), height: min(560, initial.height))
+            let host = NSHostingController(rootView: DashboardView(store: store)); host.sizingOptions = []; window.contentViewController = host
             window.isReleasedWhenClosed = false; window.delegate = self; window.center()
             window.setFrameAutosaveName("CodexLedgerDashboard"); dashboard = window
             let frame = window.frame
@@ -336,6 +356,8 @@ final class UsagePanel: NSPanel {
         if let localMonitor { NSEvent.removeMonitor(localMonitor) }
         if let globalMonitor { NSEvent.removeMonitor(globalMonitor) }
     }
+    @objc func undo(_ sender: Any?) { store.undoAttribution() }
+    @objc func newGoalAction() { openDashboard(); store.newGoal() }
     private func menuBarIcon() -> NSImage {
         let image = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { _ in
             NSColor.black.setFill()
@@ -348,7 +370,10 @@ final class UsagePanel: NSPanel {
     }
 }
 
-@main struct CodexLedgerMain {
+#if !LEDGER_LAYOUT_TESTS
+@main
+#endif
+@MainActor struct CodexLedgerMain {
     static func main() {
         if CommandLine.arguments.contains("--diagnose") { diagnose(); return }
         let app = NSApplication.shared

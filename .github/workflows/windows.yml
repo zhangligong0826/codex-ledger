@@ -77,6 +77,10 @@ jobs:
           $storage = Get-Content "$env:RUNNER_TEMP/storage-check.json" -Raw | ConvertFrom-Json
           if ($storage.goals -ne 1 -or $storage.completed -ne 1 -or $storage.language -ne 'zh' -or $storage.completionUSD -ne 0.151456789 -or $storage.completionPriceDate -ne '2026-10-01') { throw 'Upgrade did not preserve goal snapshot/preferences' }
           if ((Get-FileHash $bookPath).Hash -ne $bookBefore -or (Get-FileHash $prefsPath).Hash -ne $prefsBefore) { throw 'Original storage was changed during upgrade' }
+          if ($storage.bookVersion -ne 2 -or $storage.completionRecords -ne 1 -or $storage.legacyRecords -ne 1) { throw 'v2 migration history missing' }
+          $v2Path = Join-Path $dataDir "goals-$hash-v2.json"
+          if (-not (Test-Path $v2Path) -or -not (Test-Path ($bookPath + '.v1-original'))) { throw 'Independent v2 book or migration backup missing' }
+          $v2Before = (Get-FileHash $v2Path).Hash
           New-Item -ItemType Directory -Force "$env:RUNNER_TEMP/empty-codex/sessions" | Out-Null
           $env:CODEX_LEDGER_SOURCE = "$env:RUNNER_TEMP/empty-codex"
           $p = Start-Process "$dir/CodexLedger.exe" -ArgumentList '--diagnose', '--scope=all' -Wait -PassThru -RedirectStandardOutput "$env:RUNNER_TEMP/diagnostic.json"
@@ -93,6 +97,7 @@ jobs:
           if ($p.ExitCode -ne 0) { throw 'Portable self-contained diagnostic failed' }
           $p = Start-Process "$dir/unins000.exe" -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -Wait -PassThru
           if ($p.ExitCode -ne 0 -or (Test-Path "$dir/CodexLedger.exe")) { throw 'Uninstall failed' }
+          if ((Get-FileHash $v2Path).Hash -ne $v2Before) { throw 'Uninstall changed migrated v2 ledger' }
           if ((Get-Content $sentinel -Raw).Trim() -ne 'ledger-user-data') { throw 'User data was not preserved' }
           if ((Get-FileHash $bookPath).Hash -ne $bookBefore -or (Get-FileHash $prefsPath).Hash -ne $prefsBefore) { throw 'Uninstall changed original ledger/preferences' }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

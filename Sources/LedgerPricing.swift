@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 // Money stays Decimal until display. Pricing is applied to each deduplicated
 // response, before a turn or model is aggregated; totals are never repriced.
@@ -38,14 +39,15 @@ enum LedgerPricing {
         let version: Int; let verifiedDate: String; let sourceURL: String; let longContextThreshold: Int64
         let models: [String: Rate]
     }
-    private static let catalog: Catalog? = {
-        let candidates = [Bundle.main.url(forResource: "prices", withExtension: "json"),
-                          URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Common/prices.json")]
+    private static let catalogData: Data? = {
+        let candidates = [Bundle.main.url(forResource: "prices", withExtension: "json"), URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Common/prices.json")]
         for url in candidates.compactMap({ $0 }) {
-            if let data = try? Data(contentsOf: url), let value = try? JSONDecoder().decode(Catalog.self, from: data), value.version == 1 { return value }
+            if let data = try? Data(contentsOf: url), let value = try? JSONDecoder().decode(Catalog.self, from: data), value.version == 1 { return data }
         }
         return nil
     }()
+    private static let catalog = catalogData.flatMap { try? JSONDecoder().decode(Catalog.self, from: $0) }
+    static var version: String { catalogData.map { "v1:" + SHA256.hash(data: $0).map { String(format: "%02x", $0) }.joined() } ?? "unknown" }
     static var verifiedDate: String { catalog?.verifiedDate ?? "Unknown" }
     static var sourceURL: URL { URL(string: catalog?.sourceURL ?? "https://developers.openai.com/api/docs/pricing")! }
     static var longContextThreshold: Int64 { catalog?.longContextThreshold ?? 272_000 }

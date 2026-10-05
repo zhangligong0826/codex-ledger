@@ -2,12 +2,28 @@ import AppKit
 import SwiftUI
 import ServiceManagement
 import UniformTypeIdentifiers
+import CryptoKit
+
+struct ViewContext {
+    var page: LedgerPage
+    var goal: String?
+    var project: String?
+    var conversation: String?
+    var scope: DateScope
+    var search: String
+    var category: WorkCategory?
+    var model: String?
+    var day: Date?
+    var unassigned: Bool
+    var sort = "cost"
+    var scrollID: String?
+}
 
 enum LedgerPage: String { case goals, tasks, projects, conversations, models, settings }
 
 enum LedgerPreferences {
     static let isDemo = CommandLine.arguments.contains("--demo") || (Bundle.main.object(forInfoDictionaryKey: "LedgerDemo") as? Bool == true)
-    static let defaults: UserDefaults = isDemo ? UserDefaults(suiteName: "local.codexledger.demo")! : .standard
+    static let defaults: UserDefaults = isDemo ? UserDefaults(suiteName: (Bundle.main.bundleIdentifier ?? "local.codexledger") + ".demo")! : .standard
 }
 
 struct SharePreview: Identifiable {
@@ -21,9 +37,20 @@ struct SharePreview: Identifiable {
     @Published var todayIsReady = false
     @Published var activity: [DailyUsage] = []
     @Published var activityReady = false
+    @Published var contextActivity: [DailyUsage] = []
+    private var activityVersion = 0
     @Published var snapshot = LedgerSnapshot() { didSet { goalSummaries = nil } }
+    @Published var overviewSnapshot = LedgerSnapshot()
+    @Published var overviewReady = false
+    @Published var overviewScope: DateScope = .today { didSet { defaults.set(overviewScope.rawValue, forKey: "overviewDateScope"); updateOverview() } }
+    @Published var selectedDay: Date?
+    private var navigation: [ViewContext] = []
+    private var pageContexts: [LedgerPage: ViewContext] = [:]
+    var viewContext: ViewContext { ViewContext(page: page, goal: selectedGoalID, project: selectedProjectID, conversation: selectedConversationID, scope: scope, search: search, category: categoryFilter, model: modelFilter, day: selectedDay, unassigned: unassignedOnly, sort: sortOrder, scrollID: scrollAnchor) }
+    private func restore(_ c: ViewContext) { page = c.page; selectedGoalID = goalBook.goals.contains { $0.id == c.goal } ? c.goal : nil; selectedProjectID = c.project; selectedConversationID = c.conversation; scope = c.scope; search = c.search; categoryFilter = c.category; modelFilter = c.model; selectedDay = c.day; unassignedOnly = c.unassigned; sortOrder = c.sort; scrollAnchor = c.scrollID; selectedTaskID = nil }
     @Published var scope: DateScope = .today { didSet {
         guard scope != oldValue else { return }
+        defaults.set(scope.rawValue, forKey: "dashboardDateScope"); selectedDay = nil
         selectedTaskID = nil; recompute(reuseHistory: true)
         if scope.days > loadedDays { refresh() }
     } }
@@ -32,11 +59,24 @@ struct SharePreview: Identifiable {
     @Published var page: LedgerPage = .goals
     @Published var goalBook = GoalBook() { didSet { goalSummaries = nil } }
     @Published var goalEditor: GoalEditorDraft?
+    @Published var assignmentDraft: AssignmentDraft?
+    private var undoBooks: [AttributionState] = []
+    var canUndoAttribution: Bool { !undoBooks.isEmpty }
+    func undoAttribution() { guard let previous = undoBooks.popLast() else { return }; goalBook.rules = previous.rules; goalBook.bindings = previous.bindings
+        for i in goalBook.rules.indices where !goalBook.rules[i].legacy && goalBook.rules[i].mode != .selected && goalBook.rules[i].end == nil {
+            if let completed = goalBook.goals.first(where: { $0.id == goalBook.rules[i].goalID })?.completedAt { goalBook.rules[i].end = completed }
+        }
+        saveGoalBook() }
+    func beginAssignment(goalID: String, target: GoalTarget? = nil) { assignmentDraft = AssignmentDraft(goalID: goalID, target: target) }
+    func saveAssignment(_ rule: AttributionRule) { undoBooks.append(AttributionState(rules: goalBook.rules, bindings: goalBook.bindings)); goalBook.apply(rule); saveGoalBook(); assignmentDraft = nil }
+
     @Published var selectedGoalID: String?
     @Published var unassignedOnly = false
     @Published var lifetime = LedgerSnapshot() { didSet { goalSummaries = nil } }
     @Published var lifetimeReady = false
     private var goalBookReadable = true
+    @Published var sortOrder = "cost"
+    @Published var scrollAnchor: String?
     @Published var search = ""
     @Published var categoryFilter: WorkCategory?
     @Published var modelFilter: String?
@@ -60,6 +100,7 @@ struct SharePreview: Identifiable {
     var captureInterface: ((Bool) -> Void)?
     var prepareFilePanel: (() -> NSWindow?)?
     private var logs: [ParsedLog] = []
+    private var publishedLogs: [ParsedLog] = []
     private var loadedDays = 0
     private var renderedScope: DateScope?
     private var warnings: [String] = []
@@ -99,9 +140,24 @@ struct SharePreview: Identifiable {
         appearance = defaults.string(forKey: "appearance") ?? "system"
         heatmapMetric = defaults.string(forKey: "heatmapMetric") ?? "tokens"
         loadGoalBook()
+        scope = defaults.string(forKey: "dashboardDateScope").flatMap(DateScope.init(rawValue:)) ?? .today
+        overviewScope = defaults.string(forKey: "overviewDateScope").flatMap(DateScope.init(rawValue:)) ?? .today
         LedgerText.language = language
         showFullStatus = defaults.object(forKey: "fullStatus") as? Bool ?? true
         launchAtLogin = !LedgerPreferences.isDemo && SMAppService.mainApp.status == .enabled
+    }
+    private func updateOverview() {
+        if overviewScope == .today && todayIsReady { overviewSnapshot = today; overviewReady = true; return }
+        if overviewScope == .history && lifetimeReady { overviewSnapshot = lifetime; overviewReady = true; return }
+        if LedgerPreferences.isDemo { overviewSnapshot = LedgerDemo.snapshot(scope: overviewScope); overviewReady = true; return }
+        let requested = overviewScope, sourceLogs = logs, scanner = scanner, path = sourcePath, warnings = warnings, now = snapshot.refreshedAt, calendar = Calendar.current, overrides = overrides
+        guard loadedDays >= requested.days else { overviewReady = false; refresh(); return }
+        let resolver = self.resolver
+        queue.async {
+            let range = requested.interval(now: now, calendar: calendar)
+            let value = LedgerAnalytics.enrich(scanner.snapshot(logs: sourceLogs, start: range.start, end: range.end, root: path, overrides: overrides, warnings: warnings), resolver: resolver, titles: [:])
+            DispatchQueue.main.async { guard self.overviewScope == requested, self.sourcePath == path else { return }; self.overviewSnapshot = value; self.overviewReady = true; self.didUpdate?() }
+        }
     }
     var busy: Bool { isLoading || isComputing }
     var rangeReady: Bool { renderedScope == scope }
@@ -113,7 +169,8 @@ struct SharePreview: Identifiable {
     var categoryTotals: [(WorkCategory, Int64, Int)] { LedgerAnalytics.categories(snapshot.tasks) }
     var dataUnavailable: Bool { rangeReady && snapshot.tasks.isEmpty && activityReady && activity.allSatisfy { $0.responses == 0 } && !snapshot.warnings.isEmpty }
     static let panelWidth: CGFloat = 300
-    var panelHeight: CGFloat { !rangeReady || dataUnavailable ? 540 : categoryTotals.isEmpty ? 520 : max(540, 500 + CGFloat(min(categoryTotals.count, 3)) * 20) }
+    @Published var categoriesExpanded = false { didSet { didUpdate?() } }
+    var panelHeight: CGFloat { 410 + (categoriesExpanded ? CGFloat(min(categoryTotals.count, 3)) * 40 : 0) + CGFloat(min(goals.count, 2)) * 30 + (snapshot.warnings.isEmpty ? 0 : 30) }
     var scanStatus: String {
         if isLoading { return scanTotal > 0 ? L("正在扫描 \(scanCompleted)/\(scanTotal) 份日志") : L("正在查找日志…") }
         return isComputing ? L("正在汇总用量…") : ""
@@ -131,7 +188,7 @@ struct SharePreview: Identifiable {
         if LedgerPreferences.isDemo { loadDemo(); return }
         guard !busy else { return }
         isLoading = true; scanCompleted = 0; scanTotal = 0; didUpdate?()
-        let path = sourcePath, scanner = self.scanner, begin = Date(), days = recentFirst ? max(30, scope.days) : (goalBook.goals.isEmpty && page != .goals ? max(30, max(loadedDays, scope.days)) : Int.max)
+        let path = sourcePath, scanner = self.scanner, begin = Date(), days = recentFirst ? max(30, scope.days) : (goalBook.goals.isEmpty && page != .goals ? max(30, max(loadedDays, max(scope.days, overviewScope.days))) : Int.max)
         // History parsing cannot hold up a date switch using already loaded logs.
         scanQueue.async {
             var lastProgress = Date.distantPast
@@ -154,7 +211,7 @@ struct SharePreview: Identifiable {
                 // changed. Refresh enrichment periodically to notice titles/repos/files.
                 if force || !self.canReuseHistory || !self.rangeReady { self.recompute() }
                 else { self.didUpdate?() }
-                if self.scope.days > self.loadedDays || (self.loadedDays != Int.max && (!self.goalBook.goals.isEmpty || self.page == .goals)) {
+                if max(self.scope.days, self.overviewScope.days) > self.loadedDays || (self.loadedDays != Int.max && (!self.goalBook.goals.isEmpty || self.page == .goals)) {
                     self.refreshAfterComputation = true
                     if !self.busy { self.refreshAfterComputation = false; self.refresh() }
                 }
@@ -194,9 +251,10 @@ struct SharePreview: Identifiable {
             let activity = reuse ? previousActivity : scanner.dailyUsage(logs: logs, now: now, calendar: calendar)
             DispatchQueue.main.async {
                 guard self.computeVersion == version, self.sourcePath == path, self.scope == requestedScope else { return }
+                self.publishedLogs = logs
                 self.today = today; self.todayIsReady = true; self.snapshot = current; self.renderedScope = requestedScope; self.isComputing = false; self.didUpdate?()
                 self.lifetime = lifetime; self.lifetimeReady = allLoaded
-                self.activity = activity; self.activityReady = true
+                self.activity = activity; self.activityReady = true; self.updateOverview()
                 self.lastComputedRevision = revision; self.cachedTitles = titles
                 self.lastComputationDay = calendar.startOfDay(for: now); self.lastComputationTimezone = calendar.timeZone.identifier
                 self.lastComputedOverrides = overrides
@@ -206,23 +264,25 @@ struct SharePreview: Identifiable {
         }
     }
     func navigate(_ destination: LedgerPage) {
-        selectedGoalID = nil; unassignedOnly = false
-        page = destination; selectedProjectID = nil; selectedConversationID = nil; selectedTaskID = nil
-        categoryFilter = nil; modelFilter = nil; search = ""
+        pageContexts[page] = viewContext; navigation.removeAll()
+        if let previous = pageContexts[destination] { restore(previous) }
+        else { page = destination; selectedGoalID = nil; selectedProjectID = nil; selectedConversationID = nil; selectedTaskID = nil; clearFilters() }
         if destination == .goals && !lifetimeReady { refresh() }
     }
     func openProject(_ project: ProjectUsage) {
-        selectedGoalID = nil; unassignedOnly = false
-        page = .projects; selectedProjectID = project.id; selectedConversationID = nil; selectedTaskID = nil; clearFilters()
+        navigation.append(viewContext)
+        selectedGoalID = nil; unassignedOnly = false; page = .projects; selectedProjectID = project.id; selectedConversationID = nil; selectedTaskID = nil; clearFilters()
     }
-    func openConversation(_ chat: ConversationUsage) { selectedConversationID = chat.id; selectedTaskID = nil; clearFilters() }
+    func openConversation(_ chat: ConversationUsage) { navigation.append(viewContext); selectedConversationID = chat.id; selectedTaskID = nil; clearFilters() }
     func back() {
+        if let previous = navigation.popLast() { restore(previous); return }
         if selectedConversationID != nil { selectedConversationID = nil }
         else if selectedProjectID != nil { selectedProjectID = nil }
         else { selectedGoalID = nil }
-        selectedTaskID = nil; clearFilters()
+        selectedTaskID = nil
     }
-    func clearFilters() { search = ""; categoryFilter = nil; modelFilter = nil; unassignedOnly = false }
+    func showDay(_ day: Date) { navigate(.tasks); scope = .month; selectedDay = Calendar.current.startOfDay(for: day) }
+    func clearFilters() { selectedDay = nil; search = ""; categoryFilter = nil; modelFilter = nil; unassignedOnly = false }
     var project: ProjectUsage? { snapshot.projects.first { $0.id == selectedProjectID } }
     var contextConversations: [ConversationUsage] { selectedGoalID != nil ? LedgerAnalytics.conversations(goal?.tasks ?? [], titles: Dictionary(uniqueKeysWithValues: snapshot.conversations.map { ($0.id, $0.title) }), projectSets: Dictionary(uniqueKeysWithValues: snapshot.conversations.map { ($0.id, $0.projectIDs) })) : selectedProjectID != nil ? project?.conversations ?? [] : snapshot.conversations }
     var conversation: ConversationUsage? { contextConversations.first { $0.id == selectedConversationID } }
@@ -235,17 +295,19 @@ struct SharePreview: Identifiable {
         return snapshot.tasks
     }
     var filteredTasks: [LedgerTask] {
-        contextTasks.filter { task in
+        applyUsageFilters(contextTasks).filter { task in
             (categoryFilter == nil || task.category == categoryFilter) && (modelFilter == nil || task.models.contains(modelFilter!)) &&
             (search.isEmpty || [task.title, task.workingDirectory, task.projectName, task.sessionID, task.models.joined(separator: " ")].contains { $0.localizedCaseInsensitiveContains(search) })
         }
     }
-    var filteredProjects: [ProjectUsage] { snapshot.projects.filter { search.isEmpty || ($0.name == ProjectIdentity.unknown.name ? L($0.name) : $0.name).localizedCaseInsensitiveContains(search) || $0.path.localizedCaseInsensitiveContains(search) } }
+    var filteredProjects: [ProjectUsage] { LedgerAnalytics.projects(applyUsageFilters(snapshot.tasks), titles: cachedTitles).filter { search.isEmpty || ($0.name == ProjectIdentity.unknown.name ? L($0.name) : $0.name).localizedCaseInsensitiveContains(search) || $0.path.localizedCaseInsensitiveContains(search) }.sorted { a, b in sortOrder == "recent" ? a.lastActivity > b.lastActivity : sortOrder == "tokens" ? a.usage.total > b.usage.total : a.cost.totalUSD > b.cost.totalUSD } }
     var filteredConversations: [ConversationUsage] {
-        contextConversations.filter { chat in search.isEmpty || ([chat.title, chat.id, chat.models.joined(separator: " ")] + chat.tasks.map(\.projectPath)).contains { $0.localizedCaseInsensitiveContains(search) } }
+        let titles = Dictionary(uniqueKeysWithValues: contextConversations.map { ($0.id, $0.title) })
+        let sets = Dictionary(uniqueKeysWithValues: contextConversations.map { ($0.id, $0.projectIDs) })
+        return LedgerAnalytics.conversations(applyUsageFilters(contextConversations.flatMap(\.tasks)), titles: titles, projectSets: sets).filter { chat in search.isEmpty || ([chat.title, chat.id, chat.models.joined(separator: " ")] + chat.tasks.map(\.projectPath)).contains { $0.localizedCaseInsensitiveContains(search) } }.sorted { a, b in sortOrder == "recent" ? a.lastActivity > b.lastActivity : sortOrder == "tokens" ? a.usage.total > b.usage.total : a.cost.totalUSD > b.cost.totalUSD }
     }
-    var filteredModels: [ModelUsage] { snapshot.modelUsage.filter { search.isEmpty || L($0.model).localizedCaseInsensitiveContains(search) } }
-    var selectedTasks: [LedgerTask] {
+    var filteredModels: [ModelUsage] { LedgerAnalytics.models(applyUsageFilters(contextTasks)).filter { search.isEmpty || L($0.model).localizedCaseInsensitiveContains(search) } }
+    private var baseSelectedTasks: [LedgerTask] {
         if page == .goals && selectedGoalID == nil && selectedConversationID == nil { return filteredGoals.flatMap(\.tasks) }
         if page == .projects && selectedProjectID == nil && selectedConversationID == nil { return filteredProjects.flatMap(\.tasks) }
         if selectedConversationID == nil && (page == .conversations || selectedProjectID != nil || selectedGoalID != nil) { return filteredConversations.flatMap(\.tasks) }
@@ -260,6 +322,34 @@ struct SharePreview: Identifiable {
             }
         }
         return filteredTasks
+    }
+    func applyUsageFilters(_ input: [LedgerTask]) -> [LedgerTask] {
+        input.compactMap { task -> LedgerTask? in
+            guard categoryFilter == nil || task.category == categoryFilter else { return nil }
+            var value = task
+            if let day = selectedDay {
+                if value.samples.isEmpty { guard Calendar.current.isDate(value.date, inSameDayAs: day) else { return nil } }
+                else {
+                    let samples = value.samples.filter { Calendar.current.isDate($0.date, inSameDayAs: day) }
+                    guard !samples.isEmpty else { return nil }
+                    value.samples = samples; value.usage = samples.reduce(TokenUsage()) { $0 + $1.usage }
+                    value.modelUsage = Dictionary(grouping: samples, by: \.model).map { name, calls in ModelUsage(model: name, usage: calls.reduce(TokenUsage()) { $0 + $1.usage }, responses: calls.count, taskIDs: [task.id], cost: calls.reduce(CostEstimate()) { $0 + $1.cost }) }
+                    value.date = samples.map(\.date).min()!; value.lastActivity = samples.map(\.date).max()!; value.responses = samples.count
+                }
+            }
+            if let model = modelFilter {
+                let usages = value.modelUsage.filter { $0.model == model }; guard !usages.isEmpty else { return nil }
+                value.modelUsage = usages; value.models = [model]; value.usage = usages.reduce(TokenUsage()) { $0 + $1.usage }; value.responses = usages.reduce(0) { $0 + $1.responses }
+                value.samples = value.samples.filter { $0.model == model }
+            }
+            return value
+        }
+    }
+    var selectedTasks: [LedgerTask] { applyUsageFilters(baseSelectedTasks) }
+    var contextCoverage: AccountingCoverage { AccountingCoverage.evaluate(snapshot, turnIDs: Set(selectedTasks.map(\.id)), loaded: rangeReady, interval: effectiveInterval) }
+    var effectiveInterval: DateInterval {
+        if let day = selectedDay { return DateInterval(start: day, end: Calendar.current.date(byAdding: .day, value: 1, to: day)!) }
+        return scope.interval(now: snapshot.refreshedAt, calendar: Calendar.current)
     }
     var contextUsage: TokenUsage { selectedTasks.reduce(TokenUsage()) { $0 + $1.usage } }
     var contextCost: CostEstimate { LedgerPricing.total(selectedTasks) }
@@ -294,11 +384,33 @@ struct SharePreview: Identifiable {
     }
     func openChat(_ task: LedgerTask) { openChat(id: task.sessionID) }
     func openChat(id: String) { if let url = URL(string: "codex://threads/\(id)") { NSWorkspace.shared.open(url) } }
+    func updateContextActivity() {
+        activityVersion += 1
+        let version = activityVersion, logs = publishedLogs, capturedAt = snapshot.refreshedAt, book = goalBook, goal = selectedGoalID, project = selectedProjectID, chat = selectedConversationID, query = search, category = categoryFilter, model = modelFilter, scanner = scanner, resolver = resolver, titles = cachedTitles
+        let demo = LedgerPreferences.isDemo ? LedgerDemo.snapshot(scope: .month).tasks : nil
+        queue.async {
+            let range = DateScope.month.interval(now: capturedAt, calendar: scanner.calendar)
+            let tasks = demo ?? LedgerAnalytics.enrich(scanner.snapshot(logs: logs, start: range.start, end: range.end), resolver: resolver, titles: titles).tasks
+            let selected = tasks.filter { task in
+                (goal == nil || book.owner(task) == goal) && (project == nil || task.projectID == project) && (chat == nil || task.sessionID == chat) && (category == nil || task.category == category) && (query.isEmpty || [task.title, task.projectName, task.projectPath, titles[task.sessionID] ?? ""].contains { $0.localizedCaseInsensitiveContains(query) })
+            }
+            let days = scanner.dailyUsage(logs: logs, now: capturedAt, taskIDs: Set(selected.map(\.id)), models: model.map { Set([$0]) })
+            DispatchQueue.main.async { guard self.activityVersion == version else { return }; self.contextActivity = demo == nil ? days : (0..<30).map { offset in
+                    let date = scanner.calendar.date(byAdding: .day, value: offset, to: range.start)!
+                    let matching = selected.filter { scanner.calendar.isDate($0.date, inSameDayAs: date) }.map { task -> LedgerTask in
+                        guard let model else { return task }; var value = task; value.modelUsage = task.modelUsage.filter { $0.model == model }; value.usage = value.modelUsage.reduce(TokenUsage()) { $0 + $1.usage }; return value
+                    }
+                    return DailyUsage(date: date, usage: matching.reduce(TokenUsage()) { $0 + $1.usage }, responses: matching.reduce(0) { $0 + $1.responses }, cost: LedgerPricing.total(matching))
+                } }
+        }
+    }
     func makeShareCard(overview: Bool = false) {
-        guard rangeReady, activityReady, !busy, !isSharing, !dataUnavailable, overview || !requiresGoalBook || goalBookReadable else { return }
+        guard overview ? overviewReady : rangeReady, activityReady, !isSharing, !dataUnavailable, overview || !requiresGoalBook || goalBookReadable else { return }
+        let snapshot = overview ? overviewSnapshot : self.snapshot
+        let scope = overview ? overviewScope : self.scope
         let now = snapshot.refreshedAt
         var calendar = Calendar(identifier: .gregorian); calendar.timeZone = TimeZone(identifier: snapshot.timezone) ?? scanner.calendar.timeZone
-        let sourceLogs = logs, goalBook = self.goalBook, path = sourcePath, sourceOverrides = overrides
+        let sourceLogs = publishedLogs, goalBook = self.goalBook, path = sourcePath, sourceOverrides = overrides
         let goalID = overview ? nil : selectedGoalID, projectID = overview ? nil : selectedProjectID
         let chatID = overview ? nil : selectedConversationID
         let goalList = !overview && page == .goals && goalID == nil
@@ -312,16 +424,18 @@ struct SharePreview: Identifiable {
         let selected: [LedgerTask]
         if !overview && page == .models { selected = selectedTasks }
         else if overview { selected = snapshot.tasks }
-        else if goalList { selected = snapshot.tasks.filter { task in goalBook.owner(task).map { listedGoalIDs.contains($0) } ?? false } }
-        else if projectList { selected = filteredProjects.flatMap(\.tasks) }
-        else if chatList { selected = filteredConversations.flatMap(\.tasks) }
-        else { selected = filteredTasks }
+        else if goalList { selected = selectedTasks }
+        else if projectList { selected = selectedTasks }
+        else if chatList { selected = selectedTasks }
+        else { selected = selectedTasks }
         let chosenGoal = goalID.flatMap { id in goals.first { $0.id == id } }
         let kind = chatID != nil ? "对话用量" : goalID != nil ? "目标花费" : projectID != nil ? "项目用量" : goalList ? "目标账本" : "用量总览"
         let title = chatID != nil ? conversation?.title ?? L(kind) : chosenGoal?.goal.name ?? project?.name ?? L(kind)
-        let interval = scope.interval(now: now, calendar: calendar)
-        let range = L(scope.rawValue), priceDate = LedgerPricing.verifiedDate, warning = !snapshot.warnings.isEmpty
+        let interval = overview || selectedDay == nil ? scope.interval(now: now, calendar: calendar) : effectiveInterval
+        let range = overview || selectedDay == nil ? L(scope.rawValue) : L("仅此日"), priceDate = LedgerPricing.verifiedDate, warning = !AccountingCoverage.evaluate(snapshot, turnIDs: Set(selected.map(\.id))).canComplete
         let demoMonth = LedgerPreferences.isDemo ? LedgerDemo.snapshot(scope: .month).tasks : nil
+        let coverage = AccountingCoverage.evaluate(snapshot, turnIDs: Set(selected.map(\.id)), interval: interval)
+        let shareContext = ShareContext(kind: kind, entityID: chatID ?? projectID ?? goalID, query: query, category: category?.rawValue, model: model, start: interval.start, end: interval.end, timezone: calendar.timeZone.identifier, coverage: coverage, capturedAt: now, completion: chosenGoal?.goal.completedAt == nil ? nil : chosenGoal?.goal.completions.last)
         let metric = heatmapMetric
         let modelPage = !overview && page == .models
         let scanner = self.scanner, resolver = self.resolver
@@ -329,11 +443,12 @@ struct SharePreview: Identifiable {
         queue.async {
             let monthRange = DateScope.month.interval(now: now, calendar: calendar)
             let monthTasks = demoMonth ?? LedgerAnalytics.enrich(scanner.snapshot(logs: sourceLogs, start: monthRange.start, end: monthRange.end, root: path, overrides: sourceOverrides), resolver: resolver, titles: [:]).tasks
-            let monthModels: Set<String>? = modelPage ? Set(monthTasks.flatMap(\.models).filter { query.isEmpty || $0.localizedCaseInsensitiveContains(query) }) : nil
+            let monthModels: Set<String>? = model.map { Set([$0]) } ?? (modelPage ? Set(monthTasks.flatMap(\.models).filter { query.isEmpty || $0.localizedCaseInsensitiveContains(query) }) : nil)
             let matching = monthTasks.filter { task in
                 if let monthModels { return !Set(task.models).isDisjoint(with: monthModels) }
+                if let category, task.category != category { return false }
                 if let goalID, goalBook.owner(task) != goalID { return false }
-                if goalList { return goalBook.owner(task).map { listedGoalIDs.contains($0) } ?? false }
+                if goalList && !(goalBook.owner(task).map { listedGoalIDs.contains($0) } ?? false) { return false }
                 if unassigned && goalBook.owner(task) != nil { return false }
                 if let projectID, task.projectID != projectID { return false }
                 if let chatID, task.sessionID != chatID { return false }
@@ -361,12 +476,12 @@ struct SharePreview: Identifiable {
                 conversations: Set(selected.map(\.sessionID)).count, models: Set(selected.flatMap(\.models)).subtracting(["未知模型"]).count,
                 days: days, completionCost: chatID == nil ? chosenGoal?.goal.completionCost : nil,
                 completionDate: chosenGoal?.goal.completedAt, completionPriceDate: chosenGoal?.goal.completionPriceDate,
-                filtered: category != nil || model != nil || !query.isEmpty || unassigned, warning: warning, priceDate: priceDate, capturedAt: now, rangeStart: interval.start, rangeEnd: interval.end, heatmapMetric: metric)
+                filtered: category != nil || model != nil || !query.isEmpty || unassigned, warning: warning, priceDate: priceDate, capturedAt: now, rangeStart: interval.start, rangeEnd: interval.end, heatmapMetric: metric, context: shareContext)
             DispatchQueue.main.async { self.isSharing = false; self.presentShare?(SharePreview(snapshot: value, screenshot: nil)) }
         }
     }
     func exportCSV(models modelMode: Bool? = nil, turns: Bool = false) {
-        guard rangeReady, !busy, !dataUnavailable, modelMode != nil || !requiresGoalBook || goalBookReadable else { return }
+        guard modelMode != nil ? overviewReady : rangeReady, !dataUnavailable, modelMode != nil || !requiresGoalBook || goalBookReadable else { return }
         let (contents, kind) = csvExport(models: modelMode, turns: turns)
         let panel = NSSavePanel(); panel.allowedContentTypes = [.commaSeparatedText]
         panel.nameFieldStringValue = "Codex-\(kind)-\(L(scope.rawValue))-\(Date().formatted(.iso8601.year().month().day().dateSeparator(.dash))).csv"
@@ -377,9 +492,12 @@ struct SharePreview: Identifiable {
         }
     }
     func csvExport(models modelMode: Bool? = nil, turns: Bool = false) -> (String, String) {
+        let snapshot = modelMode == nil ? self.snapshot : overviewSnapshot
+        let scope = modelMode == nil ? self.scope : overviewScope
         var calendar = Calendar(identifier: .gregorian); calendar.timeZone = TimeZone(identifier: snapshot.timezone) ?? scanner.calendar.timeZone
-        let range = scope.interval(now: snapshot.refreshedAt, calendar: calendar)
-        let context = CSVContext(complete: snapshot.isComplete, warnings: snapshot.warnings, capturedAt: snapshot.refreshedAt, start: range.start, end: range.end, timezone: calendar.timeZone.identifier)
+        let range = modelMode != nil || selectedDay == nil ? scope.interval(now: snapshot.refreshedAt, calendar: calendar) : effectiveInterval
+        let coverage = modelMode != nil ? AccountingCoverage.evaluate(snapshot) : contextCoverage
+        let context = CSVContext(complete: coverage.canComplete, warnings: coverage.reasons, capturedAt: snapshot.refreshedAt, start: range.start, end: range.end, timezone: calendar.timeZone.identifier)
         let contents: String, kind: String
         let names = Dictionary(uniqueKeysWithValues: goalBook.goals.map { ($0.id, $0.name) })
         let goalNames = Dictionary(uniqueKeysWithValues: snapshot.tasks.compactMap { task -> (String, String)? in
@@ -389,18 +507,18 @@ struct SharePreview: Identifiable {
         if let modelMode {
             contents = modelMode ? LedgerCSV.renderModels(snapshot.modelUsage, translate: L, context: context) : LedgerCSV.render(snapshot.tasks, goalNames: goalNames, translate: L, context: context); kind = modelMode ? "Models" : "Tasks"
         } else if page == .goals && conversation == nil {
-            let selectedGoals = selectedGoalID == nil ? filteredGoals : goalBook.summaries(current: filteredConversations.flatMap(\.tasks), lifetime: lifetime.tasks).filter { $0.id == selectedGoalID }
-            contents = turns ? LedgerCSV.render(filteredTasks, goalNames: goalNames, translate: L, context: context) : LedgerCSV.renderGoals(selectedGoals, scope: L(scope.rawValue), lifetimeReady: goalAmountsReady, translate: L, context: context); kind = turns ? "Goal-Turns" : "Goals"
+            let selectedGoals = selectedGoalID == nil ? filteredGoals : goalBook.summaries(current: selectedTasks, lifetime: lifetime.tasks).filter { $0.id == selectedGoalID }
+            contents = turns ? LedgerCSV.render(selectedTasks, goalNames: goalNames, translate: L, context: context) : LedgerCSV.renderGoals(selectedGoals, scope: L(scope.rawValue), lifetimeReady: goalAmountsReady, translate: L, context: context, coverageByGoal: Dictionary(uniqueKeysWithValues: selectedGoals.map { ($0.id, goalCoverage($0.id)) })); kind = turns ? "Goal-Turns" : "Goals"
         } else if let chat = conversation {
-            let filteredChat = LedgerAnalytics.conversations(filteredTasks, titles: [chat.id: chat.title], projectSets: [chat.id: chat.projectIDs])
-            contents = turns ? LedgerCSV.render(filteredTasks, goalNames: goalNames, translate: L, context: context) : LedgerCSV.renderConversations(filteredChat, projectPath: project?.path, usageScope: selectedGoalID == nil ? nil : L("仅当前目标"), translate: L, context: context); kind = turns ? "Tasks" : "Conversations"
+            let filteredChat = LedgerAnalytics.conversations(selectedTasks, titles: [chat.id: chat.title], projectSets: [chat.id: chat.projectIDs])
+            contents = turns ? LedgerCSV.render(selectedTasks, goalNames: goalNames, translate: L, context: context) : LedgerCSV.renderConversations(filteredChat, projectPath: project?.path, usageScope: selectedGoalID == nil ? nil : L("仅当前目标"), translate: L, context: context); kind = turns ? "Tasks" : "Conversations"
         } else if page == .projects && selectedProjectID == nil {
-            contents = LedgerCSV.renderProjects(filteredProjects, translate: L, context: context); kind = "Projects"
+            contents = LedgerCSV.renderProjects(LedgerAnalytics.projects(selectedTasks, titles: cachedTitles), translate: L, context: context); kind = "Projects"
         } else if page == .conversations || selectedProjectID != nil {
-            contents = LedgerCSV.renderConversations(filteredConversations, projectPath: project?.path, usageScope: selectedGoalID == nil ? nil : L("仅当前目标"), translate: L, context: context); kind = "Conversations"
+            contents = LedgerCSV.renderConversations(LedgerAnalytics.conversations(selectedTasks, titles: cachedTitles), projectPath: project?.path, usageScope: selectedGoalID == nil ? nil : L("仅当前目标"), translate: L, context: context); kind = "Conversations"
         } else if page == .models {
             contents = LedgerCSV.renderModels(filteredModels, translate: L, context: context); kind = "Models"
-        } else { contents = LedgerCSV.render(filteredTasks, goalNames: goalNames, translate: L, context: context); kind = "Tasks" }
+        } else { contents = LedgerCSV.render(selectedTasks, goalNames: goalNames, translate: L, context: context); kind = "Tasks" }
         return (contents, kind)
     }
     private func presentFilePanel(_ panel: NSSavePanel, completion: @escaping (NSApplication.ModalResponse) -> Void) {
@@ -408,22 +526,45 @@ struct SharePreview: Identifiable {
         else { NSApp.activate(ignoringOtherApps: true); panel.begin(completionHandler: completion) }
     }
     // A separate attribution book per data root prevents unrelated imports sharing IDs.
-    private var goalBookKey: String { "goalBook.v1:" + URL(fileURLWithPath: sourcePath).standardizedFileURL.resolvingSymlinksInPath().path }
+    private var usesFileBook: Bool { !LedgerPreferences.isDemo && defaults === UserDefaults.standard }
+    private var goalBookURL: URL {
+        let digest = SHA256.hash(data: Data(goalBookKey.utf8)).map { String(format: "%02x", $0) }.joined()
+        return FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("CodexLedger/GoalBooks/" + digest + "-v2.json")
+    }
+    private var storedGoalData: Data? { usesFileBook && FileManager.default.fileExists(atPath: goalBookURL.path) ? try? Data(contentsOf: goalBookURL) : defaults.data(forKey: goalBookKey) }
+    private func writeGoalData(_ data: Data) throws {
+        if usesFileBook {
+            try FileManager.default.createDirectory(at: goalBookURL.deletingLastPathComponent(), withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+            try data.write(to: goalBookURL, options: .atomic)
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: goalBookURL.path)
+        } else { defaults.set(data, forKey: goalBookKey) }
+    }
+    private var goalBookKey: String { "goalBook.v2:" + URL(fileURLWithPath: sourcePath).standardizedFileURL.resolvingSymlinksInPath().path }
     private func loadGoalBook() {
         goalBookReadable = true; goalBook = GoalBook()
-        let legacyKey = "goalBook.v1:" + URL(fileURLWithPath: sourcePath).standardizedFileURL.path
-        if defaults.data(forKey: goalBookKey) == nil, let old = defaults.data(forKey: legacyKey) { defaults.set(old, forKey: goalBookKey) }
-        guard let data = defaults.data(forKey: goalBookKey) else { return }
-        do { goalBook = try GoalBook.decode(data) }
-        catch { goalBookReadable = false; errorMessage = L("目标账本无法读取，原有数据已保留。") }
+        let canonical = URL(fileURLWithPath: sourcePath).standardizedFileURL.resolvingSymlinksInPath().path
+        let legacyKeys = ["goalBook.v1:" + canonical, "goalBook.v1:" + URL(fileURLWithPath: sourcePath).standardizedFileURL.path]
+        do {
+            if usesFileBook && FileManager.default.fileExists(atPath: goalBookURL.path) { goalBook = try GoalBook.decode(Data(contentsOf: goalBookURL)); return }
+            if let data = defaults.data(forKey: goalBookKey) { goalBook = try GoalBook.decode(data); if usesFileBook { try writeGoalData(data) }; return }
+            if let original = legacyKeys.compactMap({ defaults.data(forKey: $0) }).first {
+                let migrated = try GoalBook.decode(original)
+                // Preserve the exact v1 bytes as well as the portable recovery copy.
+                try FileManager.default.createDirectory(at: GoalRecovery.directory, withIntermediateDirectories: true)
+                try original.write(to: GoalRecovery.directory.appendingPathComponent("v1-original-" + UUID().uuidString + ".recovery.bin"), options: .atomic)
+                try writeGoalData(JSONEncoder().encode(migrated))
+                goalBook = migrated
+            }
+        } catch { goalBookReadable = false; errorMessage = L("目标账本无法读取，原有数据已保留。") }
     }
+
     private func saveGoalBook() {
         guard goalBookReadable else { return }
-        let previous = defaults.data(forKey: goalBookKey)
+        let previous = storedGoalData
         do {
             let next = try JSONEncoder().encode(goalBook)
             if let previous, previous != next { try GoalRecovery.save(previous, source: goalBookKey) }
-            defaults.set(next, forKey: goalBookKey)
+            try writeGoalData(next)
         } catch {
             if let previous, let old = try? GoalBook.decode(previous) { goalBook = old }
             errorMessage = L("账本备份或保存失败，原有数据未覆盖。")
@@ -440,8 +581,8 @@ struct SharePreview: Identifiable {
     @discardableResult func importGoalBackup(_ data: Data) -> Bool {
         do {
             let book = try GoalArchive.decode(data)
-            if let previous = defaults.data(forKey: goalBookKey) { try GoalRecovery.save(previous, source: goalBookKey) }
-            defaults.set(try JSONEncoder().encode(book), forKey: goalBookKey)
+            if let previous = storedGoalData { try GoalRecovery.save(previous, source: goalBookKey) }
+            try writeGoalData(JSONEncoder().encode(book))
             goalBook = book; goalBookReadable = true; errorMessage = nil; navigate(.goals); return true
         } catch { errorMessage = L("备份无效或恢复失败，原有账本未覆盖。"); return false }
     }
@@ -462,13 +603,27 @@ struct SharePreview: Identifiable {
         goalSummaries = value
         return value
     }
-    var goalAmountsReady: Bool { lifetimeReady && !dataUnavailable && goalBookReadable && lifetime.isComplete }
+    var goalAmountsReady: Bool { lifetimeReady && goalBookReadable }
+    func goalCoverage(_ id: String) -> AccountingCoverage {
+        AccountingCoverage.evaluate(lifetime, turnIDs: Set(lifetime.tasks.filter { goalBook.owner($0) == id }.map(\.id)), loaded: lifetimeReady)
+    }
+    func canCompleteGoal(_ id: String) -> Bool { goalAmountsReady && !busy && goalCoverage(id).canComplete }
+    func postCompletionTasks(_ id: String) -> [LedgerTask] {
+        guard let at = goalBook.goals.first(where: { $0.id == id })?.completions.last?.completedAt else { return [] }
+        return lifetime.tasks.filter { goalBook.owner($0) == id }.compactMap { task -> LedgerTask? in
+            let samples = task.samples.filter { $0.date >= at }
+            guard !samples.isEmpty else { return nil }
+            var value = task; value.samples = samples; value.usage = samples.reduce(TokenUsage()) { $0 + $1.usage }
+            value.modelUsage = Dictionary(grouping: samples, by: \.model).map { model, calls in ModelUsage(model: model, usage: calls.reduce(TokenUsage()) { $0 + $1.usage }, responses: calls.count, taskIDs: [task.id], cost: calls.reduce(CostEstimate()) { $0 + $1.cost }) }
+            value.responses = samples.count; return value
+        }
+    }
     var goal: GoalUsage? { goals.first { $0.id == selectedGoalID } }
-    var filteredGoals: [GoalUsage] { goals.filter { search.isEmpty || $0.goal.name.localizedCaseInsensitiveContains(search) || ($0.tasks + $0.lifetimeTasks).contains { [$0.title, $0.projectPath].contains { $0.localizedCaseInsensitiveContains(search) } } } }
+    var filteredGoals: [GoalUsage] { goalBook.summaries(current: applyUsageFilters(snapshot.tasks), lifetime: lifetime.tasks).filter { search.isEmpty || $0.goal.name.localizedCaseInsensitiveContains(search) || ($0.tasks + $0.lifetimeTasks).contains { [$0.title, $0.projectPath].contains { $0.localizedCaseInsensitiveContains(search) } } } }
     var unassignedTasks: [LedgerTask] { snapshot.tasks.filter { goalBook.owner($0) == nil } }
     func openGoal(_ id: String) {
+        navigation.append(viewContext)
         page = .goals; selectedGoalID = id; selectedProjectID = nil; selectedConversationID = nil; selectedTaskID = nil; unassignedOnly = false; clearFilters()
-        scope = .history
         if !lifetimeReady { refresh() }
     }
     func editGoal(_ goal: LedgerGoal) { goalEditor = GoalEditorDraft(name: goal.name, goalID: goal.id, budget: goal.budgetUSD.map(LedgerPricing.decimalString) ?? "") }
@@ -486,31 +641,29 @@ struct SharePreview: Identifiable {
         if let id = draft.goalID, let index = goalBook.goals.firstIndex(where: { $0.id == id }) { goalBook.goals[index].name = String(name.prefix(160)); if budgetText != nil { goalBook.goals[index].budgetUSD = budget } }
         else {
             let goal = LedgerGoal(name: String(name.prefix(160)), budgetUSD: budget); goalBook.goals.append(goal)
-            if let target = draft.target { goalBook.assign(target, to: goal.id) }
-            saveGoalBook(); goalEditor = nil; openGoal(goal.id); return
+            saveGoalBook(); goalEditor = nil; openGoal(goal.id); beginAssignment(goalID: goal.id, target: draft.target); return
         }
         saveGoalBook(); goalEditor = nil
     }
     func assignGoal(_ target: GoalTarget, to id: String?) {
         guard goalBookReadable, id == nil || goalBook.goals.contains(where: { $0.id == id }) else { return }
-        goalBook.assign(target, to: id); saveGoalBook()
+        let matched = lifetime.tasks.filter { target.kind == .turn ? $0.id == target.id : target.kind == .conversation ? $0.sessionID == target.id : $0.projectID == target.id }
+        undoBooks.append(AttributionState(rules: goalBook.rules, bindings: goalBook.bindings))
+        goalBook.apply(AttributionRule(target: target, goalID: id ?? GoalBook.unassigned, mode: .selected, turnIDs: Set(matched.map(\.id))))
+        saveGoalBook()
         if !lifetimeReady { refresh() }
     }
     func resetGoalAssignment(_ target: GoalTarget) {
         guard goalBookReadable else { return }
-        goalBook.bindings.removeValue(forKey: target.key); saveGoalBook()
+        undoBooks.append(AttributionState(rules: goalBook.rules, bindings: goalBook.bindings)); goalBook.rules.removeAll { $0.target == target }; goalBook.bindings.removeValue(forKey: target.key); saveGoalBook()
     }
     func completeGoal(_ id: String) {
         guard goalBookReadable, let index = goalBook.goals.firstIndex(where: { $0.id == id }) else { return }
         if goalBook.goals[index].completedAt == nil {
-            guard goalAmountsReady, !busy, let entry = goals.first(where: { $0.id == id }) else { return }
-            goalBook.goals[index].completedAt = Date()
-            goalBook.goals[index].completionCost = entry.lifetimeCost
-            goalBook.goals[index].completionUsage = entry.lifetimeUsage
-            goalBook.goals[index].completionPriceDate = LedgerPricing.verifiedDate
-        } else {
-            goalBook.goals[index].completedAt = nil; goalBook.goals[index].completionCost = nil; goalBook.goals[index].completionUsage = nil; goalBook.goals[index].completionPriceDate = nil
-        }
+            let coverage = goalCoverage(id)
+            guard canCompleteGoal(id) else { errorMessage = coverage.reasons.map(L).joined(separator: "\n"); return }
+            goalBook.complete(id, tasks: lifetime.tasks, now: Date(), capturedAt: lifetime.refreshedAt, coverage: coverage)
+        } else { goalBook.reopen(id) }
         saveGoalBook()
     }
     func deleteGoal(_ id: String) {
@@ -528,6 +681,6 @@ struct SharePreview: Identifiable {
         activity = LedgerDemo.activity(empty: scenario != "ready")
         activityReady = scenario != "loading"
         lifetime = LedgerDemo.snapshot(empty: scenario != "ready", error: scenario == "error", scope: .history)
-        lifetimeReady = scenario != "loading"; didUpdate?()
+        lifetimeReady = scenario != "loading"; updateOverview(); didUpdate?()
     }
 }

@@ -20,7 +20,7 @@ public static class SmokeChecks {
             state.Prefs.Source=root;await state.Refresh();if(!state.Ready||state.Lifetime.Usage.Total!=101000)throw new Exception("UI source scan failed");var goal=new LedgerGoal("goal","Private goal",now);state.Book.Goals.Add(goal);state.Book.Assign("conversation:f0000000-0000-0000-0000-000000000001",goal.ID);
             window.ShowDashboard();await window.Dispatcher.InvokeAsync(()=>{},System.Windows.Threading.DispatcherPriority.ApplicationIdle);
             Console.WriteLine("UI phase: source scan ready");int count=0;
-            foreach(var language in new[]{"en","zh"})foreach(var theme in new[]{"light","dark","system"})foreach(var page in new[]{"goals","projects","conversations","tasks","models","settings"}){state.Prefs.Language=language;state.Prefs.Appearance=theme;state.Navigate(page);window.Width=880;window.Height=580;window.UpdateLayout();ShareRendering.Save(ShareRendering.Capture((System.Windows.FrameworkElement)window.Content),Path.Combine(output,$"{language}-{theme}-{page}.png"));count++;Console.WriteLine($"UI render: {language}/{theme}/{page}");}
+            foreach(var language in new[]{"en","zh"})foreach(var theme in new[]{"light","dark","system"})foreach(var page in new[]{"goals","projects","conversations","tasks","models","settings"}){state.Prefs.Language=language;state.Prefs.Appearance=theme;state.Navigate(page);window.Width=760;window.Height=560;window.UpdateLayout();ShareRendering.Save(ShareRendering.Capture((System.Windows.FrameworkElement)window.Content),Path.Combine(output,$"{language}-{theme}-{page}.png"));count++;Console.WriteLine($"UI render: {language}/{theme}/{page}");}
             foreach(var text in new[]{"{\"Categories\":null}","{\"Source\":null}","{\"Appearance\":\"invalid\"}"}){
                 try{JsonSerializer.Deserialize<Preferences>(text,Json.Options)!.Validate();throw new Exception("Invalid preferences accepted");}catch(InvalidDataException){}
             }
@@ -33,10 +33,11 @@ public static class SmokeChecks {
             try{ShareRendering.Save(card,Path.Combine(output,"missing-folder","failure.png"));throw new Exception("Expected save failure");}catch(DirectoryNotFoundException){}
 
             if(!window.ExportContents().Contains("Private goal"))throw new Exception("CSV goal summary");state.Current=original;window.ShowOverview();window.UpdateLayout();ShareRendering.Save(ShareRendering.Capture((System.Windows.FrameworkElement)window.Content),Path.Combine(output,"overview.png"));
+            state.Busy=true;var duringRefresh=state.Share(true);if(duringRefresh.Usage!=state.Current.Usage)throw new Exception("Refresh must allow published snapshot sharing");state.Busy=false;
             Console.WriteLine("UI phase: baseline sharing complete");window.ShowDashboard();var savedCurrent=state.Current;var savedLifetime=state.Lifetime;var savedMonth=state.Month;
             var seed=savedCurrent.Turns[0];var sample=seed.Samples[0];var other=sample with{ID="second-model",Model="gpt-5.4-mini",Usage=new TokenUsage(2000,0,200,0)};
             var mixed=seed with{ID="mixed-turn",Samples=new[]{sample,other},Usage=sample.Usage+other.Usage,Responses=2};
-            state.Current=new(new[]{mixed},Array.Empty<string>(),1,0){CapturedAt=savedCurrent.CapturedAt};state.Lifetime=state.Current;state.Month=state.Current;
+            state.Current=new(new[]{mixed},Array.Empty<string>(),1,0){CapturedAt=savedCurrent.CapturedAt};state.Lifetime=state.Current;state.Month=state.Current;state.PublishedScope=state.Scope;state.ResetNavigation();
             state.Navigate("models");state.Search="gpt-5.4-mini";state.Notify();var modelShare=state.Share();var modelCsv=window.ExportContents();
             if(modelShare.Usage!=other.Usage||modelShare.Cost!=other.Cost||modelCsv.Contains("\"gpt-5.4\""))throw new Exception("Model UI/share/CSV scope mismatch");
             state.Navigate("projects");state.Search=seed.Project.Name;state.Notify();if(state.Share().Usage.Total!=mixed.Usage.Total)throw new Exception("Project entity search must retain whole amount");

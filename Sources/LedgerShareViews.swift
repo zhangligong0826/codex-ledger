@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+private typealias ShareViewState<Value> = State<Value>
 import CoreImage
 import UniformTypeIdentifiers
 
@@ -68,7 +69,7 @@ import UniformTypeIdentifiers
         var parts = [T("API 成本估算，非实际账单"), value.priceDate]
         if value.warning { parts.append(T("记录不完整")) }
         if value.cost.unpricedTokens > 0 || value.monthlyCost.unpricedTokens > 0 || (value.completionCost?.unpricedTokens ?? 0) > 0 { parts.append(T("含未计价用量")) }
-        parts.append(T("生成于") + " " + value.dateLabel(value.capturedAt, time: true))
+        parts.append(T("统计时间") + " " + value.dateLabel(value.capturedAt, time: true))
         return parts.joined(separator: " · ")
     }
     var body: some View {
@@ -77,8 +78,8 @@ import UniformTypeIdentifiers
             Text(title).font(.system(size: 23, weight: .bold)).lineLimit(2)
                 .frame(width: 316, height: 57, alignment: .topLeading).offset(x: 22, y: 48)
             amount.frame(width: 316, height: 110, alignment: .topLeading).offset(x: 22, y: 112)
-            if let cost = value.completionCost {
-                HStack { Text(T("完成时")); Spacer(); Text(money(cost) + " USD").bold().lineLimit(1).minimumScaleFactor(0.3) }
+            if value.completionCost != nil {
+                HStack { Text(T("所选日期")); Spacer(); Text(money(value.cost) + " USD").bold().lineLimit(1).minimumScaleFactor(0.3) }
                     .font(.system(size: 10)).frame(width: 316, height: 14).offset(x: 22, y: 221)
                 Text(completionLabel)
                     .font(.system(size: 7)).foregroundStyle(.secondary).lineLimit(1).frame(width: 316, alignment: .leading).offset(x: 22, y: 237)
@@ -98,13 +99,13 @@ import UniformTypeIdentifiers
     }
     private var amount: some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text(T("预估 API 花费") + " · USD").font(.system(size: 10)).foregroundStyle(.secondary)
-            Text(money(value.cost)).font(.system(size: 38, weight: .semibold, design: .rounded)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.35)
-            Text(value.range + " · " + value.calendarRange + (value.filtered ? " · " + T("已筛选") : "")).font(.system(size: 10)).foregroundStyle(.secondary)
+            Text(T(value.completionCost == nil ? "预估 API 花费" : "完成时预估 API 花费") + " · USD").font(.system(size: 10)).foregroundStyle(.secondary)
+            Text(money(value.primaryCost)).font(.system(size: 38, weight: .semibold, design: .rounded)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.35)
+            Text(value.completionCost == nil ? value.range + " · " + value.calendarRange + (value.filtered ? " · " + T("已筛选") : "") : T("完成时") + " · " + (value.completionDate.map { value.dateLabel($0) } ?? "")).font(.system(size: 10)).foregroundStyle(.secondary)
             HStack(spacing: 12) {
-                Text(compactTokens(value.usage.total) + " tokens")
-                Text(String(value.turns) + " " + T("任务轮次"))
-                Text(String(value.models) + " " + T("模型"))
+                Text(compactTokens(value.primaryUsage.total) + " tokens")
+                Text((value.primaryTurns.map(String.init) ?? "—") + " " + T("任务轮次"))
+                if value.completionCost == nil { Text(String(value.models) + " " + T("模型")) }
             }.font(.system(size: 10, weight: .medium)).lineLimit(1)
         }
     }
@@ -164,19 +165,21 @@ import UniformTypeIdentifiers
     let language: String
     let close: () -> Void
     @Environment(\.colorScheme) private var colorScheme
-    @State private var title = ""
-    @State private var showName = false
-    @State private var dark = false
-    @State private var status = ""
+    @ShareViewState private var title = ""
+    @ShareViewState private var showName = false
+    @ShareViewState private var dark = false
+    @ShareViewState private var status = ""
     private var image: NSImage? {
         preview.screenshot ?? preview.snapshot.flatMap { ShareImages.card($0, title: title, showName: showName, language: language, dark: dark) }
     }
     var body: some View {
-        VStack(spacing: 12) {
+        ScrollView { VStack(spacing: 12) {
             HStack { Text(L(preview.screenshot == nil ? "分享卡片" : "当前界面截图")).font(.headline); Spacer(); Button(L("关闭")) { close() } }
-            if let image { Image(nsImage: image).resizable().scaledToFit().frame(maxWidth: 370, maxHeight: 420).background(Color.primary.opacity(0.04)) }
+            if let image { Image(nsImage: image).resizable().scaledToFit().frame(width: 270, height: 360).background(Color.primary.opacity(0.04)).accessibilityLabel(L("分享卡片")) }
             else { Text(L("图片生成失败")) }
-            if preview.snapshot != nil {
+            if let snapshot = preview.snapshot {
+                Text(L(snapshot.kind) + " · " + snapshot.privateTitle + " · " + snapshot.range + " · " + snapshot.calendarRange + (snapshot.filtered ? " · " + L("已筛选") : "")).font(.caption).foregroundStyle(.secondary)
+                if snapshot.completionCost != nil { Text(L("主金额为完成时估算，热力图为当前归属的近 30 天用量")).font(.caption).foregroundStyle(.secondary) }
                 TextField(L("公开标题（可选）"), text: $title).onChange(of: title) { _, value in if value.count > 120 { title = String(value.prefix(120)) } }
                 HStack { Toggle(L("显示原始名称"), isOn: $showName); Spacer(); Toggle(L("深色卡片"), isOn: $dark) }
                 Text(L("默认隐藏名称、路径和对话标题。请确认预览后分享。")).font(.caption).foregroundStyle(.secondary)
@@ -186,7 +189,7 @@ import UniformTypeIdentifiers
                 Button(L("复制图片")) { copy() }.disabled(image == nil)
                 Button(L("保存 PNG…")) { save() }.disabled(image == nil).keyboardShortcut(.defaultAction)
             }
-        }.padding(18).frame(width: 430).onAppear { dark = colorScheme == .dark }
+        }.padding(18) }.scrollIndicators(.hidden).frame(width: 430).onAppear { dark = colorScheme == .dark }
     }
     private func copy() {
         guard let image else { return }
@@ -209,16 +212,19 @@ import UniformTypeIdentifiers
 @MainActor struct LedgerShareMenu: View {
     @ObservedObject var store: LedgerStore
     let overview: Bool
+    private var ready: Bool { overview ? store.overviewReady : store.rangeReady }
     var body: some View {
         Menu {
-            Button(L("生成分享卡片")) { store.makeShareCard(overview: overview) }
+            Button(L("生成分享卡片")) { store.makeShareCard(overview: overview) }.disabled(!ready || !store.activityReady || store.isSharing || store.dataUnavailable)
             Button(L("保存当前界面")) { store.captureInterface?(overview) }
             Divider()
-            Button(L("导出 CSV")) { store.exportCSV(models: overview ? false : nil) }
+            Button(L("导出 CSV")) { store.exportCSV(models: overview ? false : nil) }.disabled(!ready || store.dataUnavailable)
+            if !ready { Text(L("正在整理日志，请稍候")) }
+            else if !store.activityReady { Text(L("热力图仍在加载，CSV 可以导出")) }
+            if ready { Text(L("统计时间") + " " + store.snapshot.refreshedAt.formatted(.dateTime.hour().minute().second())) }
         } label: { Image(systemName: "square.and.arrow.up") }
         .menuStyle(.borderlessButton).fixedSize()
-        .disabled(store.busy || store.isSharing || !store.rangeReady || !store.activityReady || store.dataUnavailable || (!overview && store.requiresGoalBook && !store.goalBookAvailable))
-        .help(L(store.busy || !store.rangeReady ? "正在整理日志，请稍候" : !overview && store.requiresGoalBook && !store.goalBookAvailable ? "目标账本无法读取，原有数据已保留。" : store.dataUnavailable ? "需要检查数据目录" : "分享"))
-
+        .disabled(!overview && store.requiresGoalBook && !store.goalBookAvailable)
+        .help(L("分享"))
     }
 }
