@@ -51,7 +51,7 @@ public sealed class LedgerState {
     private readonly Stack<string> undoBooks=new();
     public ViewContext View=>new(Page,GoalID,ProjectID,ChatID,Scope,Search,Category,Model,UnassignedOnly,Day,Sort,Scroll);
     private void Restore(ViewContext c){Page=c.Page;GoalID=c.Goal;ProjectID=c.Project;ChatID=c.Chat;Search=c.Search;Category=c.Category;Model=c.Model;UnassignedOnly=c.Unassigned;Day=c.Day;Sort=c.Sort;Scroll=c.Scroll;SetScope(c.Scope);}
-    public void Enter(string? goal=null,string? project=null,string? chat=null){history.Push(View);if(goal!=null)GoalID=goal;if(project!=null)ProjectID=project;if(chat!=null)ChatID=chat;Clear();}
+    public void Enter(string? goal=null,string? project=null,string? chat=null){history.Push(View);if(goal!=null)GoalID=goal;if(project!=null)ProjectID=project;if(chat!=null)ChatID=chat;Scroll=0;Clear();}
     public void Apply(AttributionRule rule){undoBooks.Push(JsonSerializer.Serialize(Book,Json.Options));Book.Apply(rule);SaveBook();Notify();}
     public void Undo(){if(undoBooks.TryPop(out var data)){var old=GoalBook.Decode(data);Book.Rules=old.Rules;Book.Bindings=old.Bindings;
         for(int i=0;i<Book.Rules.Count;i++)if(!Book.Rules[i].Legacy&&Book.Rules[i].Mode!="selected"&&Book.Rules[i].End==null&&Book.Goals.FirstOrDefault(g=>g.ID==Book.Rules[i].GoalID)?.CompletedAt is {} at)Book.Rules[i]=Book.Rules[i] with{End=at};SaveBook();Notify();}}
@@ -113,7 +113,7 @@ public sealed class LedgerState {
     public string Title=>ChatID!=null?ChatTitle(ChatID):GoalID!=null?Book.Goals.FirstOrDefault(g=>g.ID==GoalID)?.Name??T("目标账本"):ProjectID!=null?Lifetime.Turns.FirstOrDefault(t=>t.Project.ID==ProjectID)?.Project.Name??T("项目"):T(Page switch{"projects"=>"项目","conversations"=>"对话","tasks"=>"全部任务","models"=>"模型用量","settings"=>"设置",_=>"目标账本"});
     public string Range=>T(Scope switch{DateScope.Yesterday=>"昨天",DateScope.Week=>"近 7 天",DateScope.Month=>"近 30 天",DateScope.All=>"历史累计",_=>"今天"});
     public AccountingCoverage ContextCoverage=>AccountingCoverage.Evaluate(Current,Selected().Select(t=>t.ID).ToHashSet(),Ready,Day is {} day?Dates.DayInterval(day,Scanner.Zone):null);
-    public bool Known=>Ready&&(Current.Warnings.Count==0||Lifetime.Turns.Count>0);
+    public bool Known=>Ready&&PublishedScope==Scope&&(Current.Warnings.Count==0||Lifetime.Turns.Count>0);
     public bool RequiresGoalBook=>Page=="goals"||GoalID!=null||UnassignedOnly;
     public bool ContextKnown=>Known&&(!RequiresGoalBook||BookReadable);
     public bool CanShareOverview=>Ready&&Known&&PublishedScope==Scope;

@@ -28,6 +28,18 @@ import SwiftUI
                 }
             }
         }
+        store.language = "en"; LedgerText.language = "en"; store.scope = .today
+        var goal = LedgerGoal(name: "Synthetic completed goal")
+        goal.budgetUSD = 400
+        store.goalBook.goals.append(goal)
+        store.goalBook.assign(GoalTarget(kind: .conversation, id: store.lifetime.tasks.first!.sessionID), to: goal.id)
+        store.goalBook.complete(goal.id, tasks: store.lifetime.tasks, now: Date(), capturedAt: store.lifetime.refreshedAt, coverage: AccountingCoverage(status: .complete))
+        store.openGoal(goal.id)
+        let goalController = NSHostingController(rootView: DashboardView(store: store)); goalController.sizingOptions = []
+        let goalWindow = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 760, height: 560), styleMask: [.titled], backing: .buffered, defer: false)
+        goalWindow.contentViewController = goalController; goalWindow.setContentSize(NSSize(width: 760, height: 560))
+        RunLoop.main.run(until: Date().addingTimeInterval(0.1)); goalController.view.layoutSubtreeIfNeeded()
+        try ShareImages.png(ShareImages.capture(goalController.view)!)!.write(to: directory.appendingPathComponent("completed-goal.png"))
         var preview: SharePreview?
         store.presentShare = { preview = $0 }; store.makeShareCard(overview: true)
         let deadline = Date().addingTimeInterval(15)

@@ -4,6 +4,7 @@ import Foundation
 enum LedgerText {
     static var language = "en"
     static let english: [String: String] = [
+        "金额说明与完成记录": "Cost details and completion history",
         "主金额为完成时估算，热力图为当前归属的近 30 天用量": "Primary amount is frozen at completion; heatmap shows the last 30 days of currently assigned work",
         "最近": "Recent",
 

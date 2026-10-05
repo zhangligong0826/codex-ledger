@@ -290,7 +290,7 @@ struct DashboardView: View {
     var body: some View {
         HStack(spacing: 0) {
             sidebar.frame(width: 210); Divider()
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .top, spacing: 12) {
                     VStack(alignment: .leading, spacing: 5) {
                         Text(title).font(.system(size: 23, weight: .semibold)).lineLimit(2).textSelection(.enabled)
@@ -323,8 +323,7 @@ struct DashboardView: View {
                         .font(.system(size: 12)).foregroundStyle(.secondary)
                     UsageMetrics(usage: store.contextUsage, cost: store.contextCost, pending: !store.contextReady, prominent: true)
                     } else if store.selectedGoalID != nil {
-                        Text(selectedRangeSummary).font(.system(size: 11)).foregroundStyle(.secondary)
-                        UsageMetrics(usage: store.contextUsage, cost: store.contextCost, pending: !store.contextReady)
+                        HStack { Text(selectedRangeSummary).font(.system(size: 11)).foregroundStyle(.secondary); Spacer(); Text(store.contextReady ? LedgerPricing.display(store.contextCost) + " USD" : "…").font(.system(size: 12, weight: .medium)).monospacedDigit() }
                     }
                     if store.busy { HStack { ProgressView().controlSize(.small); Text(store.scanStatus).font(.system(size: 11)).foregroundStyle(.secondary) } }
                     if !store.snapshot.warnings.isEmpty { Text(store.snapshot.warnings.prefix(3).map(L).joined(separator: "\n")).font(.system(size: 11)).foregroundStyle(.orange).textSelection(.enabled) }

@@ -35,8 +35,8 @@ public static class ShareRendering {
         Add(Text(t(s.CompletionCost==null?"预估 API 花费":"完成时预估 API 花费")+" · USD",10),22,112);
         var amount=new Viewbox{Width=316,Height=47,Stretch=Stretch.Uniform,StretchDirection=StretchDirection.DownOnly,HorizontalAlignment=HorizontalAlignment.Left,Child=new TextBlock{Text=t(s.PrimaryCost.Money),FontSize=38,FontWeight=FontWeights.SemiBold,Foreground=fg}};Add(amount,22,128);
         Add(Text(s.CompletionCost==null?s.Range+" · "+s.CalendarRange+(s.Filtered?" · "+t("已筛选"):""):t("完成时")+" · "+(s.CompletionDate is {} date?s.DateLabel(date):""),10),22,181);Add(Text($"{Compact(s.PrimaryUsage.Total)} tokens · {s.PrimaryTurns?.ToString()??"—"} {t("任务轮次")} ",10),22,201);
-        if(s.CompletionCost!=null)Add(new Viewbox{Width=316,Height=14,Stretch=Stretch.Uniform,StretchDirection=StretchDirection.DownOnly,Child=new TextBlock{Text=t("所选日期")+": "+t(s.Cost.Money)+" USD",FontSize=10,Foreground=fg}},22,221);
-        if(s.CompletionCost!=null)Add(Text((s.CompletionDate is DateTimeOffset d?s.DateLabel(d):"")+" · "+t("完成时价格")+" "+(s.CompletionPriceDate??t("单价未知")),7),22,237);
+        if(s.CompletionCost!=null)Add(new Viewbox{Width=316,Height=14,Stretch=Stretch.Uniform,StretchDirection=StretchDirection.DownOnly,Child=new TextBlock{Text=t("所选日期")+" · "+s.Range+": "+t(s.Cost.Money)+" USD",FontSize=10,Foreground=fg}},22,221);
+        if(s.CompletionCost!=null)Add(Text(s.CalendarRange+" · "+t("完成时价格")+" "+(s.CompletionPriceDate??t("单价未知")),7),22,237);
         double y=s.CompletionCost==null?232:250;
         var board=new Canvas{Width=316,Height=136,Background=new SolidColorBrush((Color)ColorConverter.ConvertFromString(dark?"#232C35":"#F2F5F8"))};
         void Board(UIElement e,double x,double top){Canvas.SetLeft(e,x);Canvas.SetTop(e,top);board.Children.Add(e);}

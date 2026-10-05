@@ -33,7 +33,7 @@ public static class SmokeChecks {
             try{ShareRendering.Save(card,Path.Combine(output,"missing-folder","failure.png"));throw new Exception("Expected save failure");}catch(DirectoryNotFoundException){}
 
             if(!window.ExportContents().Contains("Private goal"))throw new Exception("CSV goal summary");state.Current=original;window.ShowOverview();window.UpdateLayout();ShareRendering.Save(ShareRendering.Capture((System.Windows.FrameworkElement)window.Content),Path.Combine(output,"overview.png"));
-            state.Busy=true;var duringRefresh=state.Share(true);if(duringRefresh.Usage!=state.Current.Usage)throw new Exception("Refresh must allow published snapshot sharing");state.Busy=false;
+            state.Busy=true;var duringRefresh=state.Share(true);if(duringRefresh.Usage!=state.Current.Usage)throw new Exception("Refresh must allow published snapshot sharing");state.SetScope(DateScope.Yesterday);if(state.Known||state.CanShareOverview)throw new Exception("Pending date change cannot relabel the old amount");state.Busy=false;state.SetScope(state.OverviewScope);
             Console.WriteLine("UI phase: baseline sharing complete");window.ShowDashboard();var savedCurrent=state.Current;var savedLifetime=state.Lifetime;var savedMonth=state.Month;
             var seed=savedCurrent.Turns[0];var sample=seed.Samples[0];var other=sample with{ID="second-model",Model="gpt-5.4-mini",Usage=new TokenUsage(2000,0,200,0)};
             var mixed=seed with{ID="mixed-turn",Samples=new[]{sample,other},Usage=sample.Usage+other.Usage,Responses=2};

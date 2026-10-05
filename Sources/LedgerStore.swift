@@ -268,14 +268,14 @@ struct SharePreview: Identifiable {
     func navigate(_ destination: LedgerPage) {
         pageContexts[page] = viewContext; navigation.removeAll()
         if let previous = pageContexts[destination] { restore(previous) }
-        else { page = destination; selectedGoalID = nil; selectedProjectID = nil; selectedConversationID = nil; selectedTaskID = nil; clearFilters() }
+        else { page = destination; selectedGoalID = nil; selectedProjectID = nil; selectedConversationID = nil; selectedTaskID = nil; scrollAnchor = nil; clearFilters() }
         if destination == .goals && !lifetimeReady { refresh() }
     }
     func openProject(_ project: ProjectUsage) {
         navigation.append(viewContext)
-        selectedGoalID = nil; unassignedOnly = false; page = .projects; selectedProjectID = project.id; selectedConversationID = nil; selectedTaskID = nil; clearFilters()
+        selectedGoalID = nil; unassignedOnly = false; page = .projects; selectedProjectID = project.id; selectedConversationID = nil; selectedTaskID = nil; scrollAnchor = nil; clearFilters()
     }
-    func openConversation(_ chat: ConversationUsage) { navigation.append(viewContext); selectedConversationID = chat.id; selectedTaskID = nil; clearFilters() }
+    func openConversation(_ chat: ConversationUsage) { navigation.append(viewContext); selectedConversationID = chat.id; selectedTaskID = nil; scrollAnchor = nil; clearFilters() }
     func back() {
         if let previous = navigation.popLast() { restore(previous); return }
         if selectedConversationID != nil { selectedConversationID = nil }
@@ -635,7 +635,7 @@ struct SharePreview: Identifiable {
     var unassignedTasks: [LedgerTask] { snapshot.tasks.filter { goalBook.owner($0) == nil } }
     func openGoal(_ id: String) {
         navigation.append(viewContext)
-        page = .goals; selectedGoalID = id; selectedProjectID = nil; selectedConversationID = nil; selectedTaskID = nil; unassignedOnly = false; clearFilters()
+        page = .goals; selectedGoalID = id; selectedProjectID = nil; selectedConversationID = nil; selectedTaskID = nil; unassignedOnly = false; scrollAnchor = nil; clearFilters()
         if !lifetimeReady { refresh() }
     }
     func editGoal(_ goal: LedgerGoal) { goalEditor = GoalEditorDraft(name: goal.name, goalID: goal.id, budget: goal.budgetUSD.map(LedgerPricing.decimalString) ?? "") }

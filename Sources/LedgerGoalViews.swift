@@ -120,19 +120,28 @@ struct GoalDetailHeader: View {
         let chats = L("\(Set(entry.lifetimeTasks.map(\.sessionID)).count) 个对话")
         return [tokens, turns, chats].joined(separator: " · ")
     }
+    private var currentCostDescription: String {
+        let current = L("当前累计") + " " + LedgerPricing.display(entry.lifetimeCost) + " USD"
+        let later = L("完成后用量") + " " + LedgerPricing.display(LedgerPricing.total(store.postCompletionTasks(entry.id))) + " USD"
+        return [current, later].joined(separator: " · ")
+    }
+    private func historyDescription(_ record: CompletionRecord) -> String {
+        var parts = [record.completedAt.formatted(.dateTime.year().month().day().hour().minute()), LedgerPricing.display(record.cost) + " USD"]
+        if record.legacy { parts.append(L("旧记录未保存归属明细")) }
+        return parts.joined(separator: " · ")
+    }
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(L(entry.goal.completedAt == nil ? "累计预估 API 花费" : "完成时预估 API 花费")).font(.system(size: 11)).foregroundStyle(.secondary)
-                    Text(store.goalAmountsReady ? LedgerPricing.display(entry.goal.completionCost ?? entry.lifetimeCost) + " USD" : store.dataUnavailable ? "—" : "…").font(.system(size: 28, weight: .semibold, design: .rounded)).monospacedDigit()
+                    Text(store.goalAmountsReady ? LedgerPricing.display(entry.goal.completionCost ?? entry.lifetimeCost) + " USD" : store.dataUnavailable ? "—" : "…").font(.system(size: 28, weight: .semibold, design: .rounded)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.5)
                     Text(lifetimeDescription).font(.system(size: 11)).foregroundStyle(.secondary)
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 6) {
                     Text(L(entry.goal.completedAt == nil ? "进行中" : "已完成")).font(.system(size: 12, weight: .medium)).foregroundStyle(entry.goal.completedAt == nil ? .blue : .green)
                     if let date = entry.goal.completedAt { Text(date.formatted(.dateTime.year().month().day())).font(.system(size: 10)).foregroundStyle(.secondary) }
-                    if let cost = entry.goal.completionCost { Text(L("完成时") + " " + LedgerPricing.display(cost) + " USD").font(.system(size: 11, weight: .medium)).monospacedDigit() }
                     Menu(L("管理目标")) {
                         Button(L("重命名目标")) { store.editGoal(entry.goal) }
                         Button(L(entry.goal.completedAt == nil ? "标记完成" : "重新打开目标")) { store.completeGoal(entry.id) }.disabled(entry.goal.completedAt == nil && !store.canCompleteGoal(entry.id))
@@ -143,8 +152,6 @@ struct GoalDetailHeader: View {
                 }
             }
             if let text = GoalBudget.label(entry.goal, cost: entry.goal.completionCost ?? entry.lifetimeCost, complete: entry.goal.completionCost != nil || store.goalAmountsReady) { Text(text).font(.system(size: 11)).foregroundStyle(.secondary) }
-            Text(L("金额为 API 估算。标记完成会保存当时金额，累计不受日期筛选影响。")).font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                .help(L("完成记录永久保留；重新打开不会恢复已停止的持续归属规则。"))
             HStack {
                 Button(L("添加工作")) { store.beginAssignment(goalID: entry.id) }.buttonStyle(.borderedProminent)
                 Button(L(entry.goal.completedAt == nil ? "确认完成" : "重新打开目标")) { store.completeGoal(entry.id) }
@@ -152,18 +159,16 @@ struct GoalDetailHeader: View {
                 if entry.goal.completedAt != nil { Button(L("生成成果卡片")) { store.makeShareCard() } }
                 if store.canUndoAttribution { Button(L("撤销归属修改")) { store.undoAttribution() } }
             }.font(.system(size: 11))
-            if store.goalBook.bindings.values.contains(entry.id) { Text(L("旧版持续规则") + " · " + L("保留原来的历史和未来覆盖行为")).font(.caption).foregroundStyle(.secondary) }
             if store.busy { Text(L("正在刷新，完成确认请稍候")).font(.caption).foregroundStyle(.secondary) }
             let coverage = store.goalCoverage(entry.id)
             if !coverage.canComplete { Text(coverage.status == .loading ? L("正在整理日志…") : L("已知估算金额") + " · " + coverage.reasons.map(L).joined(separator: " · ")).font(.caption).foregroundStyle(.orange) }
-            if entry.goal.completedAt != nil {
-                Text(L("当前累计") + " " + LedgerPricing.display(entry.lifetimeCost) + " USD · " + L("完成后用量") + " " + LedgerPricing.display(LedgerPricing.total(store.postCompletionTasks(entry.id))) + " USD").font(.caption).foregroundStyle(.secondary)
-            }
-            if !entry.goal.completions.isEmpty {
-                DisclosureGroup(L("完成历史")) {
-                    ForEach(entry.goal.completions) { record in Text(record.completedAt.formatted(.dateTime.year().month().day().hour().minute()) + " · " + LedgerPricing.display(record.cost) + " USD" + (record.legacy ? " · " + L("旧记录未保存归属明细") : "")).font(.caption) }
-                }.font(.caption)
-            }
+            DisclosureGroup(L("金额说明与完成记录")) {
+                Text(L("金额为 API 估算。标记完成会保存当时金额，累计不受日期筛选影响。")).font(.caption).foregroundStyle(.secondary)
+                Text(L("完成记录永久保留；重新打开不会恢复已停止的持续归属规则。")).font(.caption).foregroundStyle(.secondary)
+                if store.goalBook.bindings.values.contains(entry.id) { Text(L("旧版持续规则") + " · " + L("保留原来的历史和未来覆盖行为")).font(.caption).foregroundStyle(.secondary) }
+                if entry.goal.completedAt != nil { Text(currentCostDescription).font(.caption).foregroundStyle(.secondary) }
+                ForEach(entry.goal.completions) { record in Text(historyDescription(record)).font(.caption) }
+            }.font(.caption)
         }.padding(14).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
         .confirmationDialog(L("删除目标只移除归属规则，保留所有原始用量。"), isPresented: $confirmDelete, titleVisibility: .visible) {
             Button(L("删除目标"), role: .destructive) { store.deleteGoal(entry.id) }
@@ -204,6 +209,13 @@ struct AssignmentView: View {
         return AttributionRule(target: target, goalID: draft.goalID, mode: mode, turnIDs: selected, start: mode == .fromDate ? from : nil,
             end: mode != .selected && !ongoing ? Date() : nil)
     }
+    private func previewDescription(_ count: Int, cost: CostEstimate) -> String {
+        [L("归属预览"), String(count) + " " + L("任务轮次"), LedgerPricing.display(cost) + " USD"].joined(separator: " · ")
+    }
+    private func displacementDescription(_ id: String, count: Int) -> String {
+        let name = store.goalBook.goals.first { $0.id == id }?.name ?? id
+        return L("将从以下目标移出工作") + ": " + name + " · " + String(count)
+    }
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(L("添加工作") + " · " + (store.goalBook.goals.first { $0.id == draft.goalID }?.name ?? "")).font(.headline).lineLimit(2)
@@ -230,8 +242,8 @@ struct AssignmentView: View {
             }
             if let rule {
                 let preview = store.goalBook.preview(rule, tasks: store.lifetime.tasks)
-                Text(L("归属预览") + " · " + String(preview.tasks.count) + " " + L("任务轮次") + " · " + LedgerPricing.display(preview.cost) + " USD").font(.headline)
-                ForEach(preview.displaced.keys.sorted(), id: \.self) { id in Text(L("将从以下目标移出工作") + ": " + (store.goalBook.goals.first { $0.id == id }?.name ?? id) + " · " + String(preview.displaced[id]!)).font(.caption).foregroundStyle(.orange) }
+                Text(previewDescription(preview.tasks.count, cost: preview.cost)).font(.headline)
+                ForEach(preview.displaced.keys.sorted(), id: \.self) { id in Text(displacementDescription(id, count: preview.displaced[id]!)).font(.caption).foregroundStyle(.orange) }
             }
             HStack { Button(L("取消")) { store.assignmentDraft = nil }.keyboardShortcut(.cancelAction); Spacer()
                 Button(L("保存归属")) { if let rule { store.saveAssignment(rule) } }.keyboardShortcut(.defaultAction).disabled(rule == nil || !store.lifetimeReady)
