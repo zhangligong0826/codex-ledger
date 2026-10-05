@@ -41,7 +41,9 @@ elif name=='spctl': sys.exit(int(os.environ.get('LEDGER_POLICY_ASSESS_EXIT','0')
 elif name=='xcrun':
     if args[:2]==['notarytool','submit']:
         print(json.dumps({'id':'synthetic-policy-check','status':os.environ.get('LEDGER_POLICY_NOTARY_STATUS','Invalid')}))
-    if args[:2]==['stapler','validate']: sys.exit(int(os.environ.get('LEDGER_POLICY_STAPLER_EXIT','0')))
+    if args[:2]==['stapler','validate']:
+        if '/archive-check/' in args[-1]: sys.exit(int(os.environ.get('LEDGER_POLICY_ARCHIVE_TICKET_EXIT','0')))
+        sys.exit(int(os.environ.get('LEDGER_POLICY_STAPLER_EXIT','0')))
 '''
         for name in ["codesign", "lipo", "spctl", "xcrun"]:
             file = self.bin / name
@@ -116,6 +118,13 @@ elif name=='xcrun':
         self.assertNotEqual(self.run_script("package.sh").returncode, 0)
         self.assertFalse(list(Path(self.env["CODEX_LEDGER_OUTPUT_DIR"]).glob("*.dmg")))
         self.assertFalse((Path(self.env["CODEX_LEDGER_OUTPUT_DIR"]) / "CHECKSUMS.txt").exists())
+        self.assert_archive_unchanged()
+
+    def test_zip_roundtrip_losing_ticket_cannot_replace_archive(self):
+        self.env.update(CODEX_LEDGER_NOTARY_PROFILE="synthetic-policy-profile", LEDGER_POLICY_CERT="developer-id",
+                        LEDGER_POLICY_NOTARY_STATUS="Accepted", LEDGER_POLICY_ARCHIVE_TICKET_EXIT="65")
+        self.assertNotEqual(self.run_script("distribution/notarize-mac.sh").returncode, 0)
+        self.assertTrue(any(args[:2] == ["stapler", "validate"] and "/archive-check/" in args[-1] for _, args in self.calls()))
         self.assert_archive_unchanged()
 
 
