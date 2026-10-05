@@ -189,7 +189,7 @@ import UniformTypeIdentifiers
                 Button(L("复制图片")) { copy() }.disabled(image == nil)
                 Button(L("保存 PNG…")) { save() }.disabled(image == nil).keyboardShortcut(.defaultAction)
             }
-        }.padding(18) }.scrollIndicators(.hidden).frame(width: 430).onAppear { dark = colorScheme == .dark }
+        }.padding(18) }.scrollIndicators(.hidden).frame(width: 430, height: min(720, (NSScreen.main?.visibleFrame.height ?? 800) - 80)).onAppear { dark = colorScheme == .dark }
     }
     private func copy() {
         guard let image else { return }

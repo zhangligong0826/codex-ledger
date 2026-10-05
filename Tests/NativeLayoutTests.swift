@@ -28,6 +28,19 @@ import SwiftUI
                 }
             }
         }
+        var preview: SharePreview?
+        store.presentShare = { preview = $0 }; store.makeShareCard(overview: true)
+        let deadline = Date().addingTimeInterval(15)
+        while preview == nil && Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.02)) }
+        guard let preview else { fatalError("Share preview timed out") }
+        let controller = NSHostingController(rootView: SharePreviewView(preview: preview, language: "en", close: {})); controller.sizingOptions = []
+        let size = NSSize(width: 430, height: 640)
+        let window = NSWindow(contentRect: NSRect(origin: .zero, size: size), styleMask: [.titled], backing: .buffered, defer: false)
+        window.contentViewController = controller; window.setContentSize(size)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.1)); controller.view.layoutSubtreeIfNeeded()
+        precondition(controller.view.bounds.height >= 600 && controller.view.bounds.width >= 400, "Share preview must retain visible bounds")
+        guard let image = ShareImages.capture(controller.view), let png = ShareImages.png(image) else { fatalError("Preview capture failed") }
+        try png.write(to: directory.appendingPathComponent("share-preview.png"))
         print("Native layouts: \(count) localized/theme/page renders at 760x560; window bounds retained")
     }
 }

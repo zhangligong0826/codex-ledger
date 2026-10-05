@@ -330,6 +330,7 @@ final class UsagePanel: NSPanel {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 430, height: min(720, (NSScreen.main?.visibleFrame.height ?? 800) - 80)), styleMask: [.titled, .closable], backing: .buffered, defer: false)
         window.title = L("分享"); window.isReleasedWhenClosed = false
         let host = NSHostingController(rootView: SharePreviewView(preview: preview, language: store.language, close: { [weak window] in window?.close() })); host.sizingOptions = []; window.contentViewController = host
+        window.setContentSize(NSSize(width: 430, height: min(720, (NSScreen.main?.visibleFrame.height ?? 800) - 80)))
         shareWindow = window; window.center(); NSApp.activate(ignoringOtherApps: true); window.makeKeyAndOrderFront(nil)
     }
     func openDashboard() {

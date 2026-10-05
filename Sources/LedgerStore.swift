@@ -550,8 +550,10 @@ struct SharePreview: Identifiable {
             if let original = legacyKeys.compactMap({ defaults.data(forKey: $0) }).first {
                 let migrated = try GoalBook.decode(original)
                 // Preserve the exact v1 bytes as well as the portable recovery copy.
-                try FileManager.default.createDirectory(at: GoalRecovery.directory, withIntermediateDirectories: true)
-                try original.write(to: GoalRecovery.directory.appendingPathComponent("v1-original-" + UUID().uuidString + ".recovery.bin"), options: .atomic)
+                try FileManager.default.createDirectory(at: GoalRecovery.directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+                let rawBackup = GoalRecovery.directory.appendingPathComponent("v1-original-" + UUID().uuidString + ".recovery.bin")
+                try original.write(to: rawBackup, options: .atomic)
+                try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: rawBackup.path)
                 try writeGoalData(JSONEncoder().encode(migrated))
                 goalBook = migrated
             }
