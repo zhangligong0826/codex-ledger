@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 enum DateScope: String, CaseIterable, Identifiable {
     case today = "今天", yesterday = "昨天", week = "近 7 天", month = "近 30 天", history = "历史累计"
@@ -367,7 +368,13 @@ final class LogParser {
             guard let r = (try? JSONSerialization.jsonObject(with: line)) as? [String: Any], let type = r["type"] as? String, let p = r["payload"] as? [String: Any] else {
                 result.malformed += 1; return
             }
-            let stamp = date(r["timestamp"]) ?? modified
+            // Most records are tool output or status messages. Validate their JSON,
+            // but only parse an ISO timestamp when an accounting branch needs it.
+            var cachedStamp: Date?
+            var stamp: Date {
+                if let cachedStamp { return cachedStamp }
+                let value = date(r["timestamp"]) ?? modified; cachedStamp = value; return value
+            }
             if type == "session_meta" {
                 result.sessionID = (p["id"] as? String) ?? (p["session_id"] as? String) ?? url.deletingPathExtension().lastPathComponent
                 currentDirectory = p["cwd"] as? String ?? ""
@@ -465,12 +472,17 @@ final class LogParser {
             pending.append(chunk)
             var start = pending.startIndex
             while let end = pending[start...].firstIndex(of: 10) {
-                consume(Data(pending[start..<end])); start = pending.index(after: end)
+                // Foundation's temporary JSON objects must not accumulate until an
+                // entire multi-gigabyte scan returns to the run loop.
+                autoreleasepool { consume(Data(pending[start..<end])) }
+                start = pending.index(after: end)
             }
             if start > pending.startIndex { pending = Data(pending[start...]) }
         }
         // A trailing partial line is expected while Codex is writing. Retry next scan.
-        if !pending.isEmpty, (try? JSONSerialization.jsonObject(with: pending)) != nil { consume(pending) }
+        autoreleasepool {
+            if !pending.isEmpty, (try? JSONSerialization.jsonObject(with: pending)) != nil { consume(pending) }
+        }
         let reconciliation = UsageReconciler.reconcile(legacy: legacy, modern: structured, intervals: intervals)
         result.samples = reconciliation.samples.filter { $0.date >= cutoff }
         result.integrityWarnings = reconciliation.warnings
@@ -499,12 +511,61 @@ final class LogParser {
 final class LedgerScanner: @unchecked Sendable {
     private var cache: [String: ParsedLog] = [:]
     private var cacheRoot = ""
-    private var cacheDays: Int?
+    private struct Stamp: Equatable { let size: UInt64; let modified: Date }
+    private var manifest: [String: Stamp]?
+    private var previousWarnings: [String] = []
+    private var previousCutoff: Date?
+    private var revision = 0
+    private let cacheDirectory: URL?
+    private struct CacheEntry: Codable {
+        // Bump this whenever parsing/attribution semantics change. Prices are not cached.
+        var version = 1
+        let root: String
+        let digest: String
+        let payload: Data
+    }
+    private(set) var parsedFileCount = 0
+    private(set) var diskCacheHits = 0
+    private(set) var memoryCacheHits = 0
     private let parser = LogParser()
     let calendar: Calendar
-    init(timezone: TimeZone = .current) { var c = Calendar(identifier: .gregorian); c.timeZone = timezone; calendar = c }
-    func scan(root: URL, now: Date = Date(), days: Int? = 7, overrides: [String: String] = [:], progress: ((Int, Int) -> Void)? = nil) -> (logs: [ParsedLog], warnings: [String]) {
-        if cacheRoot != root.path || cacheDays != days { cache = [:]; cacheRoot = root.path; cacheDays = days }
+    init(timezone: TimeZone = .current, cacheDirectory: URL? = nil) {
+        var c = Calendar(identifier: .gregorian); c.timeZone = timezone; calendar = c
+        self.cacheDirectory = cacheDirectory
+    }
+    static var applicationCacheDirectory: URL? {
+        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?.appendingPathComponent("local.codexledger.app/usage-v1", isDirectory: true)
+    }
+    private func hash(_ data: Data) -> String { SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined() }
+    private func cacheURL(path: String) -> URL? {
+        cacheDirectory?.appendingPathComponent(hash(Data(cacheRoot.utf8)), isDirectory: true).appendingPathComponent(hash(Data(path.utf8)) + ".plist")
+    }
+    private func restore(path: String, size: UInt64, modified: Date) -> ParsedLog? {
+        guard let url = cacheURL(path: path),
+              let bytes = try? Data(contentsOf: url, options: .mappedIfSafe),
+              let entry = try? PropertyListDecoder().decode(CacheEntry.self, from: bytes), entry.version == 1, entry.root == cacheRoot,
+              hash(entry.payload) == entry.digest,
+              let log = try? PropertyListDecoder().decode(ParsedLog.self, from: entry.payload),
+              log.path == path, log.size == size, log.modified == modified else { return nil }
+        return log
+    }
+    private func persist(_ log: ParsedLog) {
+        guard let url = cacheURL(path: log.path) else { return }
+        // This index is disposable, local and private; a write failure never blocks accounting.
+        do {
+            let fm = FileManager.default
+            try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+            if let cacheDirectory { try fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: cacheDirectory.path) }
+            let encoder = PropertyListEncoder(); encoder.outputFormat = .binary
+            let payload = try encoder.encode(log)
+            try encoder.encode(CacheEntry(root: cacheRoot, digest: hash(payload), payload: payload)).write(to: url, options: .atomic)
+            try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+        } catch { /* Fall back to the source logs on the next launch. */ }
+    }
+    func scan(root: URL, now: Date = Date(), days: Int? = 7, overrides: [String: String] = [:], progress: ((Int, Int) -> Void)? = nil) -> (logs: [ParsedLog], warnings: [String], revision: Int) {
+        let root = root.standardizedFileURL.resolvingSymlinksInPath()
+        if cacheRoot != root.path { cache = [:]; manifest = nil; cacheRoot = root.path }
+        parsedFileCount = 0; diskCacheHits = 0; memoryCacheHits = 0
         let cutoff = days.map { calendar.date(byAdding: .day, value: -(max(1, $0) - 1), to: calendar.startOfDay(for: now))! } ?? .distantPast
         let fm = FileManager.default
         var found = false, warnings: [String] = [], logs: [ParsedLog] = []
@@ -522,8 +583,8 @@ final class LedgerScanner: @unchecked Sendable {
                     let attrs = try url.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey, .isRegularFileKey])
                     guard attrs.isRegularFile == true else { continue }
                     let modified = attrs.contentModificationDate ?? .distantPast
-                    guard modified >= cutoff else { continue }
                     paths.insert(url.path)
+                    guard modified >= cutoff else { continue }
                     let size = UInt64(max(0, attrs.fileSize ?? 0))
                     candidates.append((url, size, modified))
                 } catch { warnings.append("\(url.lastPathComponent)：\(error.localizedDescription)") }
@@ -534,15 +595,35 @@ final class LedgerScanner: @unchecked Sendable {
             let (url, size, modified) = entry
             do {
                 let log: ParsedLog
-                if let old = cache[url.path], old.size == size, old.modified == modified { log = old }
-                else { log = try parser.parse(url: url, size: size, modified: modified, cutoff: cutoff); cache[url.path] = log }
-                logs.append(log)
+                if let old = cache[url.path], old.size == size, old.modified == modified { log = old; memoryCacheHits += 1 }
+                else if let old = restore(path: url.path, size: size, modified: modified) { log = old; cache[url.path] = old; diskCacheHits += 1 }
+                else {
+                    // Cache the complete file once. Date filtering must never discard older
+                    // responses when switching ranges or computing a goal's lifetime.
+                    log = try parser.parse(url: url, size: size, modified: modified); parsedFileCount += 1
+                    let after = try url.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey])
+                    if after.contentModificationDate == modified && UInt64(max(0, after.fileSize ?? 0)) == size {
+                        cache[url.path] = log; persist(log)
+                    } else { cache.removeValue(forKey: url.path) }
+                }
+                var selected = log
+                if cutoff != .distantPast {
+                    selected.samples = log.samples.filter { $0.date >= cutoff }
+                    let turns = Set(selected.samples.map(\.turnID))
+                    selected.turns = log.turns.filter { turns.contains($0.key) }
+                }
+                logs.append(selected)
             } catch { warnings.append("\(url.lastPathComponent)：\(error.localizedDescription)") }
             progress?(index + 1, candidates.count)
         }
         cache = cache.filter { paths.contains($0.key) }
         if !found { warnings.append("没有找到 sessions 或 archived_sessions。请在设置中选择 Codex 数据目录。") }
-        return (logs, warnings)
+        let next = Dictionary(uniqueKeysWithValues: logs.map { ($0.path, Stamp(size: $0.size, modified: $0.modified)) })
+        let normalizedWarnings = Array(Set(warnings)).sorted()
+        if manifest != next || previousWarnings != normalizedWarnings || previousCutoff != cutoff {
+            revision += 1; manifest = next; previousWarnings = normalizedWarnings; previousCutoff = cutoff
+        }
+        return (logs, normalizedWarnings, revision)
     }
     func snapshot(logs: [ParsedLog], start: Date, end: Date, root: String = "", overrides: [String: String] = [:], warnings: [String] = []) -> LedgerSnapshot {
         let parseWarnings = logs.flatMap(\.integrityWarnings)

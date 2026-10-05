@@ -158,7 +158,7 @@ struct StatusPopover: View {
                 Text("Codex Ledger \(Bundle.main.object(forInfoDictionaryKey: "LedgerReleaseVersion") as? String ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.2.0")").font(.system(size: 9)).foregroundStyle(.secondary)
                 Button { store.refresh() } label: {
                     TimelineView(.periodic(from: .now, by: 1)) { context in
-                        Text(store.busy ? L("正在更新…") : L("\(max(0, 30 - Int(context.date.timeIntervalSince(store.today.refreshedAt)))) 秒后更新")).font(.system(size: 9)).foregroundStyle(.secondary).monospacedDigit()
+                        Text(store.busy ? L("正在更新…") : L("\(max(0, 30 - Int(context.date.timeIntervalSince(store.lastCheckedAt)))) 秒后更新")).font(.system(size: 9)).foregroundStyle(.secondary).monospacedDigit()
                     }
                 }.buttonStyle(.plain).disabled(store.busy).keyboardShortcut("r", modifiers: .command)
                 Spacer(minLength: 3)

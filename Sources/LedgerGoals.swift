@@ -67,14 +67,20 @@ struct GoalBook: Codable {
 }
 struct GoalUsage: Identifiable {
     var goal: LedgerGoal
-    var tasks: [LedgerTask]
-    var lifetimeTasks: [LedgerTask]
+    let tasks: [LedgerTask]
+    let lifetimeTasks: [LedgerTask]
     var id: String { goal.id }
-    var usage: TokenUsage { tasks.reduce(TokenUsage()) { $0 + $1.usage } }
-    var cost: CostEstimate { LedgerPricing.total(tasks) }
-    var lifetimeUsage: TokenUsage { lifetimeTasks.reduce(TokenUsage()) { $0 + $1.usage } }
-    var lifetimeCost: CostEstimate { LedgerPricing.total(lifetimeTasks) }
-    var lastActivity: Date? { lifetimeTasks.map(\.lastActivity).max() }
+    let usage: TokenUsage
+    let cost: CostEstimate
+    let lifetimeUsage: TokenUsage
+    let lifetimeCost: CostEstimate
+    let lastActivity: Date?
+    init(goal: LedgerGoal, tasks: [LedgerTask], lifetimeTasks: [LedgerTask]) {
+        self.goal = goal; self.tasks = tasks; self.lifetimeTasks = lifetimeTasks
+        usage = tasks.reduce(TokenUsage()) { $0 + $1.usage }; cost = LedgerPricing.total(tasks)
+        lifetimeUsage = lifetimeTasks.reduce(TokenUsage()) { $0 + $1.usage }; lifetimeCost = LedgerPricing.total(lifetimeTasks)
+        lastActivity = lifetimeTasks.map(\.lastActivity).max()
+    }
 }
 extension LedgerCSV {
     static func renderGoals(_ goals: [GoalUsage], scope: String, lifetimeReady: Bool, translate: (String) -> String = { $0 }, context: CSVContext? = nil) -> String {

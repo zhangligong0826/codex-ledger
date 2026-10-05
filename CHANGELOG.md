@@ -1,3 +1,11 @@
+## Unreleased — macOS performance (build 13)
+
+- Persist a private, checksummed, disposable parsed-log index across launches; reparse changed logs and rebuild incompatible/corrupt entries.
+- Load recent usage before historical accounting, with separate scan and analytics queues so history parsing does not block date navigation.
+- Skip unchanged timer aggregations; reuse today, lifetime and heatmap data for date changes while invalidating at day/timezone boundaries and refreshing optional metadata periodically.
+- Cache goal summaries and their Decimal totals, throttle progress updates, and avoid parsing timestamps on unrelated records.
+- Add cache and asynchronous startup/refresh regression tests and optional diagnostic cache/timing counters. Public Beta.3 release assets remain build 12.
+
 ## 1.2.0-beta.3 — 2026-10-05
 
 - Reconcile mixed counter/response logs; flag incomplete records and block completion snapshots when coverage is incomplete.

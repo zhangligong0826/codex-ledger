@@ -124,13 +124,53 @@ import Foundation
         let weekLogs = historyScanner.scan(root: historyRoot, now: midnight, days: 7)
         expect(weekLogs.logs.count == 1 && weekLogs.logs[0].samples.count == 2, "week scan excludes old files and old responses")
         let monthLogs = historyScanner.scan(root: historyRoot, now: midnight, days: 30)
-        expect(monthLogs.logs.count == 1 && monthLogs.logs[0].samples.count == 3, "expanding range reparses cached file to include older responses")
+        expect(monthLogs.logs.count == 1 && monthLogs.logs[0].samples.count == 3 && historyScanner.parsedFileCount == 0, "expanding range retains older responses without reparsing")
         var complete = 0, totalFiles = 0
         let allLogs = historyScanner.scan(root: historyRoot, now: midnight, days: nil) { complete = $0; totalFiles = $1 }
         expect(allLogs.logs.count == 2, "all-time scan includes files older than 30 days")
         expect(complete == 2 && totalFiles == 2, "scan progress reports completion")
         let lifetime = historyScanner.snapshot(logs: allLogs.logs, start: .distantPast, end: nextDay)
         expect(lifetime.usage.total == 429, "all-time accounting includes historical responses")
+        let index = folder.appendingPathComponent("private-cache")
+        let cold = LedgerScanner(timezone: timezone, cacheDirectory: index)
+        let cachedMonth = cold.scan(root: historyRoot, now: midnight, days: 30)
+        let warm = LedgerScanner(timezone: timezone, cacheDirectory: index)
+        _ = warm.scan(root: historyRoot, now: midnight, days: nil)
+        expect(cold.parsedFileCount == 1 && warm.diskCacheHits == 1 && warm.parsedFileCount == 1, "a new process reuses complete cached files across ranges")
+        let restored = LedgerScanner(timezone: timezone, cacheDirectory: index)
+        let restoredAll = restored.scan(root: historyRoot, now: midnight, days: nil)
+        let restoredSnapshot = restored.snapshot(logs: restoredAll.logs, start: .distantPast, end: nextDay)
+        expect(restored.diskCacheHits == 2 && restored.parsedFileCount == 0 && restoredSnapshot.usage == lifetime.usage && restoredSnapshot.cost == lifetime.cost, "disk restoration preserves exact token subsets and Decimal amounts")
+        expect(restored.dailyUsage(logs: restoredAll.logs, now: midnight).reduce(TokenUsage()) { $0 + $1.usage } == cold.dailyUsage(logs: cachedMonth.logs, now: midnight).reduce(TokenUsage()) { $0 + $1.usage }, "cache restoration preserves the heatmap scope")
+        let noChange = restored.scan(root: historyRoot, now: midnight, days: nil)
+        expect(noChange.revision == restoredAll.revision && restored.memoryCacheHits == 2 && restored.parsedFileCount == 0, "unchanged scans keep their revision and never parse logs")
+        try (modern + response("r-month", 20, 2, "2026-09-15T12:00:00Z") + response("r-extra", 44, 4, "2026-10-04T12:00:00Z")).write(to: recentFile, atomically: true, encoding: .utf8)
+        let changed = restored.scan(root: historyRoot, now: midnight, days: nil)
+        expect(changed.revision != noChange.revision && restored.parsedFileCount == 1 && restored.memoryCacheHits == 1 && restored.snapshot(logs: changed.logs, start: .distantPast, end: nextDay).usage.total == 477, "only a changed file is parsed and its new response is included")
+        try FileManager.default.removeItem(at: historicalFile)
+        let deleted = restored.scan(root: historyRoot, now: midnight, days: nil)
+        expect(deleted.logs.count == 1 && restored.snapshot(logs: deleted.logs, start: .distantPast, end: nextDay).usage.total == 400, "a deleted source cannot reappear from a disk cache")
+        let cacheFiles = (FileManager.default.enumerator(at: index, includingPropertiesForKeys: nil)!.allObjects as! [URL]).filter { $0.pathExtension == "plist" }
+        expect(cacheFiles.allSatisfy { ((try? FileManager.default.attributesOfItem(atPath: $0.path)[.posixPermissions]) as? NSNumber)?.intValue == 0o600 }, "private cache files have owner-only permissions")
+        for url in cacheFiles { try Data("broken index".utf8).write(to: url) }
+        let broken = LedgerScanner(timezone: timezone, cacheDirectory: index)
+        let rebuilt = broken.scan(root: historyRoot, now: midnight, days: nil)
+        expect(broken.parsedFileCount == 1 && broken.diskCacheHits == 0 && broken.snapshot(logs: rebuilt.logs, start: .distantPast, end: nextDay).usage.total == 400 && rebuilt.warnings.isEmpty, "a corrupt disposable index is rebuilt instead of displaying zero")
+        let existingCache = (FileManager.default.enumerator(at: index, includingPropertiesForKeys: nil)!.allObjects as! [URL]).filter { $0.pathExtension == "plist" }
+        for url in existingCache {
+            guard var value = try? PropertyListSerialization.propertyList(from: Data(contentsOf: url), format: nil) as? [String: Any] else { continue }
+            value["version"] = 999
+            try PropertyListSerialization.data(fromPropertyList: value, format: .binary, options: 0).write(to: url)
+        }
+        let incompatible = LedgerScanner(timezone: timezone, cacheDirectory: index)
+        _ = incompatible.scan(root: historyRoot, now: midnight, days: nil)
+        expect(incompatible.parsedFileCount == 1 && incompatible.diskCacheHits == 0, "an incompatible parser cache cannot be reused")
+        let cannotWrite = folder.appendingPathComponent("cache-is-a-file")
+        try Data().write(to: cannotWrite)
+        let fallback = LedgerScanner(timezone: timezone, cacheDirectory: cannotWrite).scan(root: historyRoot, now: midnight, days: nil)
+        expect(fallback.logs.count == 1 && fallback.warnings.isEmpty, "cache write failures never prevent reading source usage")
+        let otherSource = broken.scan(root: emptyFolder, now: midnight, days: nil)
+        expect(otherSource.logs.isEmpty && !otherSource.warnings.isEmpty, "switching sources cannot inherit a previous source's cache")
         var utcCalendar = Calendar(identifier: .gregorian); utcCalendar.timeZone = timezone
         let monthRange = DateScope.month.interval(now: midnight, calendar: utcCalendar)
         expect(monthRange.start == parser.date("2026-09-05T00:00:00Z")! && monthRange.end == nextDay, "30-day range includes today and preceding 29 days")

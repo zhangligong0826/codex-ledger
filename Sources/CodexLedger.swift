@@ -328,9 +328,10 @@ final class UsagePanel: NSPanel {
         let scopes: [String: DateScope] = ["today": .today, "yesterday": .yesterday, "7d": .week, "30d": .month, "all": .history]
         let argument = CommandLine.arguments.first { $0.hasPrefix("--scope=") }.map { String($0.dropFirst(8)) } ?? "today"
         guard let scope = scopes[argument] else { fputs("Scope must be today, yesterday, 7d, 30d, or all\n", stderr); exit(2) }
-        let scanner = LedgerScanner(); let start = Date()
+        let scanner = LedgerScanner(cacheDirectory: CommandLine.arguments.contains("--use-cache") ? LedgerScanner.applicationCacheDirectory : nil); let start = Date()
         let now = Date()
         let result = scanner.scan(root: URL(fileURLWithPath: root), now: now, days: scope.days == Int.max ? nil : max(30, scope.days))
+        let scanSeconds = Date().timeIntervalSince(start), aggregationStart = Date()
         let range = scope.interval(now: now, calendar: .current)
         let snap = scanner.snapshot(logs: result.logs, start: range.start, end: range.end, root: root, warnings: result.warnings)
         let enriched = LedgerAnalytics.enrich(snap, resolver: ProjectResolver(), titles: ConversationMetadata.titles(root: URL(fileURLWithPath: root)))
@@ -343,12 +344,20 @@ final class UsagePanel: NSPanel {
         output["conversationEstimatedAPIUSD"] = LedgerPricing.decimalString(enriched.conversations.reduce(CostEstimate()) { $0 + $1.cost }.totalUSD)
         output["modelEstimatedAPIUSD"] = LedgerPricing.decimalString(snap.modelUsage.reduce(CostEstimate()) { $0 + $1.cost }.totalUSD)
         output["pricingDate"] = LedgerPricing.verifiedDate
+        output["scanSeconds"] = scanSeconds
+        output["aggregationSeconds"] = Date().timeIntervalSince(aggregationStart)
+        output["parsedFiles"] = scanner.parsedFileCount
+        output["diskCacheHits"] = scanner.diskCacheHits
+        output["memoryCacheHits"] = scanner.memoryCacheHits
+        let heatmapStart = Date()
         let activity = scanner.dailyUsage(logs: result.logs, now: now, calendar: .current)
         let formatter = DateFormatter(); formatter.locale = Locale(identifier: "en_US_POSIX"); formatter.dateFormat = "yyyy-MM-dd"
         output["activityTotal"] = activity.reduce(Int64(0)) { $0 + $1.usage.total }
         output["activeDays"] = activity.filter { $0.usage.total > 0 }.count
         output["activityEstimatedAPIUSD"] = LedgerPricing.decimalString(activity.reduce(CostEstimate()) { $0 + $1.cost }.totalUSD)
         output["dailyUsage"] = activity.map { ["date": formatter.string(from: $0.date), "total": $0.usage.total, "responses": $0.responses, "estimatedAPIUSD": LedgerPricing.decimalString($0.cost.totalUSD), "pricedTokens": $0.cost.pricedTokens, "unpricedTokens": $0.cost.unpricedTokens] as [String: Any] }
+        output["heatmapSeconds"] = Date().timeIntervalSince(heatmapStart)
+        output["totalSeconds"] = Date().timeIntervalSince(start)
         if let data = try? JSONSerialization.data(withJSONObject: output, options: [.prettyPrinted, .sortedKeys]), let text = String(data: data, encoding: .utf8) { print(text) }
     }
 }

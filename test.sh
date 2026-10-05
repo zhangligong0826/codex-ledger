@@ -13,6 +13,10 @@ xcrun swiftc -swift-version 5 -module-cache-path "$PROJECT_DIR/.build/swift-cach
   -framework AppKit -framework SwiftUI -framework ServiceManagement -lsqlite3 -o "$TEST_BUILD/StoreTests"
 "$TEST_BUILD/StoreTests" --demo
 xcrun swiftc -swift-version 5 -module-cache-path "$PROJECT_DIR/.build/swift-cache" \
+  "$PROJECT_DIR/Sources/LedgerPricing.swift" "$PROJECT_DIR/Sources/LedgerCore.swift" "$PROJECT_DIR/Sources/LedgerAnalytics.swift" "$PROJECT_DIR/Sources/LedgerGoals.swift" "$PROJECT_DIR/Sources/LedgerShare.swift" "$PROJECT_DIR/Sources/LedgerDemo.swift" "$PROJECT_DIR/Sources/Localization.swift" "$PROJECT_DIR/Sources/LedgerStore.swift" "$PROJECT_DIR/Tests/StorePerformanceTests.swift" \
+  -framework AppKit -framework SwiftUI -framework ServiceManagement -lsqlite3 -o "$TEST_BUILD/StorePerformanceTests"
+"$TEST_BUILD/StorePerformanceTests"
+xcrun swiftc -swift-version 5 -module-cache-path "$PROJECT_DIR/.build/swift-cache" \
   "$PROJECT_DIR/Sources/LedgerPricing.swift" "$PROJECT_DIR/Sources/LedgerCore.swift" "$PROJECT_DIR/Sources/LedgerAnalytics.swift" "$PROJECT_DIR/Sources/LedgerGoals.swift" "$PROJECT_DIR/Sources/LedgerShare.swift" "$PROJECT_DIR/Sources/LedgerDemo.swift" "$PROJECT_DIR/Sources/Localization.swift" "$PROJECT_DIR/Sources/LedgerStore.swift" "$PROJECT_DIR/Tests/GoalTests.swift" \
   -framework AppKit -framework SwiftUI -framework ServiceManagement -lsqlite3 -o "$TEST_BUILD/GoalTests"
 "$TEST_BUILD/GoalTests" --demo

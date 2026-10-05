@@ -21,20 +21,20 @@ struct SharePreview: Identifiable {
     @Published var todayIsReady = false
     @Published var activity: [DailyUsage] = []
     @Published var activityReady = false
-    @Published var snapshot = LedgerSnapshot()
+    @Published var snapshot = LedgerSnapshot() { didSet { goalSummaries = nil } }
     @Published var scope: DateScope = .today { didSet {
         guard scope != oldValue else { return }
-        selectedTaskID = nil; recompute()
+        selectedTaskID = nil; recompute(reuseHistory: true)
         if scope.days > loadedDays { refresh() }
     } }
     @Published var isLoading = false
     @Published var isComputing = false
     @Published var page: LedgerPage = .goals
-    @Published var goalBook = GoalBook()
+    @Published var goalBook = GoalBook() { didSet { goalSummaries = nil } }
     @Published var goalEditor: GoalEditorDraft?
     @Published var selectedGoalID: String?
     @Published var unassignedOnly = false
-    @Published var lifetime = LedgerSnapshot()
+    @Published var lifetime = LedgerSnapshot() { didSet { goalSummaries = nil } }
     @Published var lifetimeReady = false
     private var goalBookReadable = true
     @Published var search = ""
@@ -53,6 +53,7 @@ struct SharePreview: Identifiable {
     @Published var sourcePath: String
     @Published var launchAtLogin = false
     @Published var lastScanSeconds: Double = 0
+    @Published var lastCheckedAt = Date()
     var didUpdate: (() -> Void)?
     @Published var isSharing = false
     var presentShare: ((SharePreview) -> Void)?
@@ -64,11 +65,22 @@ struct SharePreview: Identifiable {
     private var warnings: [String] = []
     private var overrides: [String: String]
     private var computeVersion = 0
+    private var logsRevision = 0
+    private var lastComputedRevision = -1
+    private var lastComputationDay: Date?
+    private var lastComputationTimezone = ""
+    private var lastComputationTime = Date.distantPast
+    private var lastComputedOverrides: [String: String] = [:]
+    private var cachedTitles: [String: String] = [:]
+    private var goalSummaries: [GoalUsage]?
+    private(set) var computationCount = 0
+    private(set) var historyAggregationCount = 0
     private let queue = DispatchQueue(label: "local.codexledger.scan", qos: .utility)
-    private let scanner = LedgerScanner()
+    private let scanQueue = DispatchQueue(label: "local.codexledger.files", qos: .utility)
+    private let scanner: LedgerScanner
     private let resolver = ProjectResolver()
     private var timer: Timer?
-    private let defaults = LedgerPreferences.defaults
+    private let defaults: UserDefaults
     var showSettings: Bool {
         get { page == .settings }
         set { if newValue { page = .settings } else if page == .settings { page = .tasks } }
@@ -77,10 +89,15 @@ struct SharePreview: Identifiable {
         get { page == .models }
         set { if newValue { page = .models } else if page == .models { page = .tasks } }
     }
-    init() {
+    init(sourcePath: String? = nil, defaults: UserDefaults = LedgerPreferences.defaults, scanner: LedgerScanner? = nil) {
+        self.defaults = defaults
+        self.scanner = scanner ?? LedgerScanner(cacheDirectory: LedgerPreferences.isDemo ? nil : LedgerScanner.applicationCacheDirectory)
         let fallback = ProcessInfo.processInfo.environment["CODEX_HOME"] ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".codex").path
-        sourcePath = LedgerPreferences.isDemo ? "/Users/demo/.codex" : defaults.string(forKey: "sourcePath") ?? fallback
+        self.sourcePath = sourcePath ?? (LedgerPreferences.isDemo ? "/Users/demo/.codex" : defaults.string(forKey: "sourcePath") ?? fallback)
         overrides = defaults.dictionary(forKey: "categoryOverrides") as? [String: String] ?? [:]
+        language = defaults.string(forKey: "language") ?? "en"
+        appearance = defaults.string(forKey: "appearance") ?? "system"
+        heatmapMetric = defaults.string(forKey: "heatmapMetric") ?? "tokens"
         loadGoalBook()
         LedgerText.language = language
         showFullStatus = defaults.object(forKey: "fullStatus") as? Bool ?? true
@@ -104,34 +121,53 @@ struct SharePreview: Identifiable {
     func start() {
         applyAppearance()
         if LedgerPreferences.isDemo { loadDemo(); return }
-        refresh()
+        refresh(recentFirst: true)
         timer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
             guard let store = self else { return }
-            Task { @MainActor in store.refresh() }
+            Task { @MainActor in store.refresh(force: false) }
         }
     }
-    func refresh() {
+    func refresh(force: Bool = true, recentFirst: Bool = false) {
         if LedgerPreferences.isDemo { loadDemo(); return }
-        guard !isLoading else { return }
+        guard !busy else { return }
         isLoading = true; scanCompleted = 0; scanTotal = 0; didUpdate?()
-        let path = sourcePath, scanner = self.scanner, begin = Date(), days = goalBook.goals.isEmpty && page != .goals ? max(30, max(loadedDays, scope.days)) : Int.max
-        queue.async {
+        let path = sourcePath, scanner = self.scanner, begin = Date(), days = recentFirst ? max(30, scope.days) : (goalBook.goals.isEmpty && page != .goals ? max(30, max(loadedDays, scope.days)) : Int.max)
+        // History parsing cannot hold up a date switch using already loaded logs.
+        scanQueue.async {
+            var lastProgress = Date.distantPast
             let result = scanner.scan(root: URL(fileURLWithPath: path), days: days == Int.max ? nil : days) { completed, total in
-                if completed % 10 == 0 || completed == total { DispatchQueue.main.async {
+                let now = Date()
+                if completed == 0 || completed == total || now.timeIntervalSince(lastProgress) >= 0.2 {
+                    lastProgress = now
+                    DispatchQueue.main.async {
                     guard self.sourcePath == path else { return }
                     self.scanCompleted = completed; self.scanTotal = total
-                } }
+                    }
+                }
             }
             DispatchQueue.main.async {
                 guard self.sourcePath == path else { self.isLoading = false; self.refresh(); return }
                 self.logs = result.logs; self.warnings = result.warnings; self.loadedDays = days
-                self.lastScanSeconds = Date().timeIntervalSince(begin); self.isLoading = false
-                self.recompute()
-                if self.scope.days > self.loadedDays || (self.loadedDays != Int.max && (!self.goalBook.goals.isEmpty || self.page == .goals)) { self.refresh() }
+                self.logsRevision = result.revision
+                self.lastCheckedAt = Date(); self.lastScanSeconds = self.lastCheckedAt.timeIntervalSince(begin); self.isLoading = false
+                // A lightweight manifest check every 30 seconds is enough when nothing
+                // changed. Refresh enrichment periodically to notice titles/repos/files.
+                if force || !self.canReuseHistory || !self.rangeReady { self.recompute() }
+                else { self.didUpdate?() }
+                if self.scope.days > self.loadedDays || (self.loadedDays != Int.max && (!self.goalBook.goals.isEmpty || self.page == .goals)) {
+                    self.refreshAfterComputation = true
+                    if !self.busy { self.refreshAfterComputation = false; self.refresh() }
+                }
             }
         }
     }
-    func recompute() {
+    private var refreshAfterComputation = false
+    private var canReuseHistory: Bool {
+        lastComputedRevision == logsRevision && lastComputationDay == Calendar.current.startOfDay(for: Date()) &&
+        lastComputationTimezone == Calendar.current.timeZone.identifier && lastComputedOverrides == overrides &&
+        Date().timeIntervalSince(lastComputationTime) < 300
+    }
+    func recompute(reuseHistory: Bool = false) {
         if LedgerPreferences.isDemo { loadDemo(); return }
         computeVersion += 1
         guard loadedDays >= scope.days else {
@@ -140,23 +176,32 @@ struct SharePreview: Identifiable {
         isComputing = true; didUpdate?()
         let version = computeVersion, requestedScope = scope, path = sourcePath, logs = self.logs, overrides = self.overrides, warnings = self.warnings
         let calendar = Calendar.current, now = Date(), scanner = self.scanner, resolver = self.resolver, allLoaded = loadedDays == Int.max
+        let reuse = reuseHistory && canReuseHistory
+        computationCount += 1
+        if !reuse && allLoaded { historyAggregationCount += 1 }
+        let previousToday = today, previousLifetime = lifetime, previousActivity = activity, previousTitles = cachedTitles, revision = logsRevision
         queue.async {
             let root = URL(fileURLWithPath: path)
-            var titles = ConversationMetadata.titles(root: root)
+            var titles = reuse ? previousTitles : ConversationMetadata.titles(root: root)
             for log in logs where !log.firstPrompt.isEmpty && titles[log.sessionID] == nil { titles[log.sessionID] = log.firstPrompt }
             let todayRange = DateScope.today.interval(now: now, calendar: calendar)
-            let today = LedgerAnalytics.enrich(scanner.snapshot(logs: logs, start: todayRange.start, end: todayRange.end, root: path, overrides: overrides, warnings: warnings), resolver: resolver, titles: titles)
+            let today = reuse ? previousToday : LedgerAnalytics.enrich(scanner.snapshot(logs: logs, start: todayRange.start, end: todayRange.end, root: path, overrides: overrides, warnings: warnings), resolver: resolver, titles: titles)
             let range = requestedScope.interval(now: now, calendar: calendar)
-            var current = requestedScope == .today ? today : LedgerAnalytics.enrich(scanner.snapshot(logs: logs, start: range.start, end: range.end, root: path, overrides: overrides, warnings: warnings), resolver: resolver, titles: titles)
+            var current = requestedScope == .today ? today : (requestedScope == .history && reuse && allLoaded ? previousLifetime : LedgerAnalytics.enrich(scanner.snapshot(logs: logs, start: range.start, end: range.end, root: path, overrides: overrides, warnings: warnings), resolver: resolver, titles: titles))
             current.refreshedAt = now; current.timezone = calendar.timeZone.identifier
             let lifetimeRange = DateScope.history.interval(now: now, calendar: calendar)
-            let lifetime = allLoaded ? (requestedScope == .history ? current : LedgerAnalytics.enrich(scanner.snapshot(logs: logs, start: lifetimeRange.start, end: lifetimeRange.end, root: path, overrides: overrides, warnings: warnings), resolver: resolver, titles: titles)) : LedgerSnapshot()
-            let activity = scanner.dailyUsage(logs: logs, now: now, calendar: calendar)
+            let lifetime = allLoaded ? (requestedScope == .history ? current : (reuse ? previousLifetime : LedgerAnalytics.enrich(scanner.snapshot(logs: logs, start: lifetimeRange.start, end: lifetimeRange.end, root: path, overrides: overrides, warnings: warnings), resolver: resolver, titles: titles))) : LedgerSnapshot()
+            let activity = reuse ? previousActivity : scanner.dailyUsage(logs: logs, now: now, calendar: calendar)
             DispatchQueue.main.async {
                 guard self.computeVersion == version, self.sourcePath == path, self.scope == requestedScope else { return }
                 self.today = today; self.todayIsReady = true; self.snapshot = current; self.renderedScope = requestedScope; self.isComputing = false; self.didUpdate?()
                 self.lifetime = lifetime; self.lifetimeReady = allLoaded
                 self.activity = activity; self.activityReady = true
+                self.lastComputedRevision = revision; self.cachedTitles = titles
+                self.lastComputationDay = calendar.startOfDay(for: now); self.lastComputationTimezone = calendar.timeZone.identifier
+                self.lastComputedOverrides = overrides
+                if !reuse { self.lastComputationTime = now }
+                if self.refreshAfterComputation { self.refreshAfterComputation = false; self.refresh() }
             }
         }
     }
@@ -411,7 +456,12 @@ struct SharePreview: Identifiable {
             else if alert.runModal() == .alertFirstButtonReturn { self.importGoalBackup(data) }
         }
     }
-    var goals: [GoalUsage] { goalBook.summaries(current: snapshot.tasks, lifetime: lifetime.tasks) }
+    var goals: [GoalUsage] {
+        if let goalSummaries { return goalSummaries }
+        let value = goalBook.summaries(current: snapshot.tasks, lifetime: lifetime.tasks)
+        goalSummaries = value
+        return value
+    }
     var goalAmountsReady: Bool { lifetimeReady && !dataUnavailable && goalBookReadable && lifetime.isComplete }
     var goal: GoalUsage? { goals.first { $0.id == selectedGoalID } }
     var filteredGoals: [GoalUsage] { goals.filter { search.isEmpty || $0.goal.name.localizedCaseInsensitiveContains(search) || ($0.tasks + $0.lifetimeTasks).contains { [$0.title, $0.projectPath].contains { $0.localizedCaseInsensitiveContains(search) } } } }
