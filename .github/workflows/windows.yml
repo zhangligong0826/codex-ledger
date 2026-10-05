@@ -78,7 +78,8 @@ jobs:
           if ($storage.goals -ne 1 -or $storage.completed -ne 1 -or $storage.language -ne 'zh' -or $storage.completionUSD -ne 0.151456789 -or $storage.completionPriceDate -ne '2026-10-01') { throw 'Upgrade did not preserve goal snapshot/preferences' }
           if ((Get-FileHash $bookPath).Hash -ne $bookBefore -or (Get-FileHash $prefsPath).Hash -ne $prefsBefore) { throw 'Original storage was changed during upgrade' }
           if ($storage.bookVersion -ne 2 -or $storage.completionRecords -ne 1 -or $storage.legacyRecords -ne 1) { throw 'v2 migration history missing' }
-          $v2Path = Join-Path $dataDir "goals-$hash-v2.json"
+          $v2Hash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($source.ToUpperInvariant())))
+          $v2Path = Join-Path $dataDir "goals-$v2Hash-v2.json"
           if (-not (Test-Path $v2Path) -or -not (Test-Path ($bookPath + '.v1-original'))) { throw 'Independent v2 book or migration backup missing' }
           $v2Before = (Get-FileHash $v2Path).Hash
           New-Item -ItemType Directory -Force "$env:RUNNER_TEMP/empty-codex/sessions" | Out-Null
