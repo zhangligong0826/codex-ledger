@@ -270,6 +270,14 @@ final class UsagePanel: NSPanel {
         if CommandLine.arguments.contains("--show-dashboard") || LedgerPreferences.isDemo { openDashboard() }
     }
     func updateStatus() {
+        if let main = NSApp.mainMenu, main.items.count > 1 {
+            let edit = main.items[1]; edit.title = L("编辑"); edit.submenu?.title = L("编辑")
+            for (item, title) in zip(edit.submenu?.items ?? [], ["撤销", "剪切", "复制", "粘贴", "全选"]) { item.title = L(title) }
+            for item in main.items[0].submenu?.items ?? [] {
+                if item.action == #selector(newGoalAction) { item.title = L("新建目标") }
+                if item.action == #selector(settingsAction) { item.title = L("设置…") }
+            }
+        }
         dashboard?.title = L("Codex Ledger · 工作账本"); usagePanel?.title = L("Codex Ledger · 用量总览")
         NSApp.mainMenu?.items.first?.submenu?.items.first?.title = L("显示用量面板")
         NSApp.mainMenu?.items.first?.submenu?.items.last?.title = L("退出 Codex Ledger")

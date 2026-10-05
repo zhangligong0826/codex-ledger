@@ -1,0 +1,2 @@
+# Keep catalog hashes identical in compiled Mac and Windows resources.
+Common/*.json text eol=lf

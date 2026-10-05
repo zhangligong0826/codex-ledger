@@ -287,6 +287,10 @@ struct MonthlyActivityView: View {
 struct DashboardView: View {
     @ObservedObject var store: LedgerStore
     @FocusState private var searchFocused: Bool
+    private var compactContextSummary: String {
+        let models = Set(store.selectedTasks.flatMap(\.models)).subtracting(["未知模型"]).count
+        return [compactTokens(store.contextUsage.total) + " tokens", String(store.selectedTasks.count) + " " + L("任务轮次"), String(models) + " " + L("模型")].joined(separator: " · ")
+    }
     var body: some View {
         HStack(spacing: 0) {
             sidebar.frame(width: 210); Divider()
@@ -319,7 +323,7 @@ struct DashboardView: View {
                     }
                     if let entry = store.goal { ScrollView(showsIndicators: false) { GoalDetailHeader(store: store, entry: entry).fixedSize(horizontal: false, vertical: true) }.frame(maxHeight: 200) }
                     if store.page != .goals {
-                    Text(compactTokens(store.contextUsage.total) + " tokens · " + String(store.selectedTasks.count) + " " + L("任务轮次") + " · " + String(Set(store.selectedTasks.flatMap(\.models)).subtracting(["未知模型"]).count) + " " + L("模型"))
+                    Text(compactContextSummary)
                         .font(.system(size: 12)).foregroundStyle(.secondary)
                     UsageMetrics(usage: store.contextUsage, cost: store.contextCost, pending: !store.contextReady, prominent: true)
                     } else if store.selectedGoalID != nil {
